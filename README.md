@@ -2,12 +2,14 @@
 
 Two tools for running a raid. Recruiting: posts your LFM message to the channels you pick on a timer and collects everyone who whispers you into a sortable applicant list with their item level, level and role. Loot rolls: puts a boss drop up for roll in /rw, tracks who rolled what, and hands the item to the winner. /rr
 
+[![Latest release](https://img.shields.io/github/v/release/DenoHearth/RaidRecruiter?label=download&style=for-the-badge)](https://github.com/DenoHearth/RaidRecruiter/releases/latest)
+
 A World of Warcraft 3.3.5a addon, written for the [Project Ascension](https://ascension.gg) client (realm *Vol'jin — Conquest of Azeroth*).
 
 ## Install
 
-1. Download this repository (**Code → Download ZIP**, or clone it).
-2. Put the `RaidRecruiter` folder into your client's `Interface\AddOns\` directory.
+1. Download the zip from the [latest release](https://github.com/DenoHearth/RaidRecruiter/releases/latest).
+2. Extract the `RaidRecruiter` folder into your client's `Interface\AddOns\` directory.
 3. Restart the client, or type `/reload` if it is already running.
 
 ## Commands
