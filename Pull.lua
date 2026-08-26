@@ -18,11 +18,20 @@ local endsAt = 0
 local ticker
 local said = {}         -- seconds already announced, so a slow frame cannot double up
 
--- Fifteen, then ten, then the last five. Anything else is chat nobody reads.
-local CALLOUTS = { [10] = true, [5] = true, [4] = true, [3] = true, [2] = true, [1] = true }
+-- Ten, then the last five, plus the round marks a long timer needs -- two
+-- minutes, one minute, thirty and fifteen. On the default fifteen-second pull
+-- none of the long marks are ever reached, and the start line already claims
+-- its own number, so a short countdown is exactly as quiet as it was.
+local CALLOUTS = {
+    [120] = true, [60] = true, [30] = true, [15] = true,
+    [10] = true, [5] = true, [4] = true, [3] = true, [2] = true, [1] = true,
+}
 
+-- Five minutes at the top: a pull timer is also what gets used for a summon or
+-- a break, and sixty seconds silently becoming the answer to "/rr pull 120" is
+-- worse than a long timer.
 RR.MIN_PULL = 3
-RR.MAX_PULL = 60
+RR.MAX_PULL = 300
 
 function RR.PullActive()
     return running

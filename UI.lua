@@ -705,9 +705,11 @@ local function BuildWindow()
         else
             GameTooltip:AddLine(string.format("Counts the raid down from %d seconds to zero",
                 tonumber(RR.db.pullSeconds) or 15), 0.8, 0.8, 0.8, true)
-            GameTooltip:AddLine("in raid warnings: the start, then 10, then 5 to 1, then Pull!", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("in raid warnings: the start, then 2min/1min/30/15 if the", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("count is that long, then 10, then 5 to 1, then Pull!", 0.8, 0.8, 0.8, true)
             GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("/rr pull 8 for a different count. It announces only --", 0.5, 0.5, 0.5, true)
+            GameTooltip:AddLine("/rr pull 8 or /rr pull 120 for a different count, 3 to 300.", 0.5, 0.5, 0.5, true)
+            GameTooltip:AddLine("It announces only --", 0.5, 0.5, 0.5, true)
             GameTooltip:AddLine("walking in is still yours to do.", 0.5, 0.5, 0.5, true)
         end
         GameTooltip:Show()

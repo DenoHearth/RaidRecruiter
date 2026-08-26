@@ -174,7 +174,19 @@ def run(mutate=None):
     # Out-of-range counts are clamped rather than refused.
     lua5 = boot(mutate)
     lua5.eval("RR.StartPull(600)")
-    check("clamped to the maximum", round(lua5.eval("RR.PullSecondsLeft()")) == 60)
+    check("clamped to the maximum", round(lua5.eval("RR.PullSecondsLeft()")) == 300)
+
+    # A two-minute timer is asked for and counted as asked for -- it used to
+    # come out as sixty seconds -- and it calls the round marks on the way down
+    # instead of going silent until the last ten seconds.
+    lua6 = boot(mutate)
+    lua6.eval("RR.StartPull(120)")
+    check("long pull kept", round(lua6.eval("RR.PullSecondsLeft()")) == 120)
+    lua6.eval("Advance(95)")
+    heard = said(lua6)
+    check("minute called", "60" in heard)
+    check("thirty called", "30" in heard)
+    check("start not repeated", heard.count("Pull in 120 seconds.") == 1)
 
     return failures
 
