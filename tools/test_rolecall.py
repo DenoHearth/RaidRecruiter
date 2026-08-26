@@ -214,6 +214,13 @@ def run(mutate=None):
     Tick(3600)
     check("no time limit", lua.eval("RR.RoleCallActive()") is True)
 
+    # A chase reads only the people it is chasing. Bjorn already answered, so
+    # his raid chat is ordinary talk -- a role word in it must not relabel him,
+    # which is what an open-ended chase did to a whole raid.
+    lua.eval('FireEvent("CHAT_MSG_RAID", "tank the second one", "Bjorn")')
+    check("chase deaf to the answered", lua.eval('RR.knownRoles["Bjorn"]') == "Healer")
+    check("chase still waiting on two", lua.eval("RR.ChaseRemaining()") == 2)
+
     # One of them answers.
     lua.eval('FireEvent("CHAT_MSG_RAID", "healer", "Astrid")')
     check("answer taken", lua.eval('RR.knownRoles["Astrid"]') == "Healer")
@@ -320,6 +327,8 @@ BREAKAGES = {
     "chase expires like a check": ("RoleCall.lua",
                                    "-- chase expires.\n    ticker = C_Timer.NewTicker(1, function()\n        if not running then return end",
                                    "-- chase expires.\n    ticker = C_Timer.NewTicker(1, function()\n        if not running then return end\n        RR.StopRoleCall()"),
+    "chase reads everyone": ("RoleCall.lua",
+                            'if mode == "chase" and not chasing[name] then return end', ""),
     "chase never ends itself": ("RoleCall.lua",
                                 "if RR.ChaseRemaining() == 0 then", "if false then"),
     "chase waits on everyone forever": ("RoleCall.lua",

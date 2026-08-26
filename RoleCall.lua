@@ -61,6 +61,14 @@ local function Capture(sender, msg)
     local grouped = RR.GroupedNames()
     if not grouped[name] then return end
 
+    -- A chase is waiting on named people and nobody else. It has no clock -- it
+    -- sits open until the stragglers answer -- so reading every raid line for a
+    -- role word relabels the whole group off ordinary talk: "tank the second
+    -- one" arrives from a healer and the healer becomes a tank. Only the people
+    -- still being chased can answer a chase. A timed check keeps the old rule,
+    -- because it closes after a minute and it asked everybody.
+    if mode == "chase" and not chasing[name] then return end
+
     local role = RR.ParseRole(msg)
     if not role then return end
 
