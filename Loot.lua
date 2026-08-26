@@ -617,9 +617,85 @@ function RR.GiveTo(name, link)
         return false, "GiveMasterLoot failed: " .. tostring(err)
     end
 
-    RR.RecordHandover(name, link, slot)
+    -- GiveMasterLoot returns nothing and tells you nothing. The server can
+    -- refuse it -- the winner moved out of range, somebody else took the item,
+    -- their bags are full -- and, for anything that binds, the client puts up a
+    -- confirmation popup and hands over nothing until it is answered. Every one
+    -- of those looks identical from here: no error, no item.
+    --
+    -- So nothing is recorded yet. The slot itself is the answer: if the item is
+    -- still sitting in it a moment later, it did not go.
+    RR.pendingGive = {
+        name = name,
+        link = link,
+        slot = slot,
+        at = GetTime(),
+    }
 
-    return true, string.format("%s given to %s", link, name)
+    C_Timer.After(1.2, function()
+        local waiting = RR.pendingGive
+        if not waiting or waiting.name ~= name or waiting.link ~= link then return end
+        RR.SettleGive()
+    end)
+
+    -- Not "given": nothing is known yet. RecordHandover -- and the raid warning
+    -- that goes with it -- happen once the corpse says the slot is empty.
+    return true, string.format("sending %s to %s...", link, name)
+end
+
+-- Did it actually go? Called a moment after the attempt, and again the instant
+-- the loot window says a slot emptied.
+-- clearedSlot: set when a loot slot just emptied. That is only evidence about
+-- the handover if it is the slot the item was in -- another item being looted
+-- off the same corpse says nothing, and treating it as an answer would report a
+-- failure while the real one is still in flight.
+function RR.SettleGive(clearedSlot)
+    local waiting = RR.pendingGive
+    if not waiting then return end
+
+    if clearedSlot then
+        if clearedSlot ~= waiting.slot then return end
+        RR.pendingGive = nil
+        RR.RecordHandover(waiting.name, waiting.link, waiting.slot)
+        return
+    end
+
+    -- The window closing is not evidence either way, and neither is looting the
+    -- corpse dry: in both cases the slot is gone for reasons of its own. Only a
+    -- slot that still holds the item proves it did not go.
+    local stillThere = false
+    if RR.LootWindowOpen() then
+        local ok, current = pcall(GetLootSlotLink, waiting.slot)
+        if ok and current == waiting.link then
+            stillThere = true
+        end
+    end
+
+    if stillThere then
+        -- Waiting on the bind popup is not a failure, it is a question nobody
+        -- has answered yet. Keep waiting, say so once, and look again -- the
+        -- answer arrives whenever he gets to it.
+        if waiting.bindPrompt then
+            if not waiting.told then
+                waiting.told = true
+                RR.Print("%s has not gone to %s yet -- the client wants you to confirm it binds. Answer that popup.",
+                    waiting.link, waiting.name)
+            end
+            C_Timer.After(5, function()
+                if RR.pendingGive == waiting then RR.SettleGive() end
+            end)
+            return
+        end
+
+        RR.pendingGive = nil
+        RR.Print("%s did NOT go to %s -- it is still on the corpse. Usually they are out of range, their bags are full, or somebody else took it. Nothing was recorded, so press it again.",
+            waiting.link, waiting.name)
+        if RR.RefreshLootUI then RR.RefreshLootUI() end
+        return
+    end
+
+    RR.pendingGive = nil
+    RR.RecordHandover(waiting.name, waiting.link, waiting.slot)
 end
 
 -- Events ----------------------------------------------------------------------
@@ -653,7 +729,8 @@ end
 
 function RR.Loot_Init()
     local watcher = CreateFrame("Frame")
-    for _, event in ipairs({ "LOOT_OPENED", "LOOT_CLOSED", "LOOT_SLOT_CLEARED", "CHAT_MSG_SYSTEM" }) do
+    for _, event in ipairs({ "LOOT_OPENED", "LOOT_CLOSED", "LOOT_SLOT_CLEARED",
+                             "LOOT_BIND_CONFIRM", "CHAT_MSG_SYSTEM" }) do
         pcall(watcher.RegisterEvent, watcher, event)
     end
 
@@ -671,7 +748,21 @@ function RR.Loot_Init()
             RR.lootSource = source
             RR.ScanLoot()
             if RR.RefreshLootUI then RR.RefreshLootUI() end
+        elseif event == "LOOT_BIND_CONFIRM" then
+            -- The item binds, so the client wants a yes before it goes. Its own
+            -- popup is already up; this only makes sure the reason the handover
+            -- is sitting there is on screen in words too, because the popup can
+            -- easily be behind this window.
+            if RR.pendingGive then
+                RR.pendingGive.bindPrompt = true
+                RR.Print("%s binds -- confirm the popup to finish giving it to %s.",
+                    RR.pendingGive.link, RR.pendingGive.name)
+            end
         elseif event == "LOOT_SLOT_CLEARED" then
+            -- The fastest proof a handover worked: the slot it came from is
+            -- empty. Waiting for the timer would leave the roll open a second
+            -- longer than it has to be.
+            if RR.pendingGive then RR.SettleGive(arg1) end
             RR.ScanLoot()
             if RR.RefreshLootUI then RR.RefreshLootUI() end
         elseif event == "LOOT_CLOSED" then

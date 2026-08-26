@@ -392,7 +392,47 @@ def test_master_loot_still_wins():
                            % repr(AXE).replace("'", '"'))()
     assert ok, "master loot handover failed: %s" % message
     assert lua.eval("tradeOpen") is False, "opened a trade while the corpse still had the item"
+    # Nothing is recorded on the strength of the call alone -- the corpse has to
+    # show the slot is empty first.
+    assert len(lua.eval("RR.rollHistory")) == 0, "recorded the handover before the corpse confirmed it"
+    lua.execute("RunTimers()")
     assert len(lua.eval("RR.rollHistory")) == 1, "master loot handover was not recorded"
+
+
+def test_refused_handover_is_not_recorded():
+    """GiveMasterLoot says nothing when the server refuses. The item still being
+    in the slot is the only evidence, and it must not be logged as handed out."""
+    lua = boot()
+    scenario(lua)
+    lua.execute("FireEvent('LOOT_OPENED')")
+    lua.execute("GiveMasterLoot = function() end")   # server refuses: nothing moves
+    ok, _ = lua.eval("function() return RR.HandOut('Borkk', %s) end"
+                     % repr(AXE).replace("'", '"'))()
+    lua.execute("RunTimers()")
+    assert len(lua.eval("RR.rollHistory")) == 0, "a refused handover was recorded as done"
+    said = " ".join(str(v) for v in lua.eval("printed").values())
+    assert "did NOT go" in said, "a refused handover said nothing: %s" % said
+
+
+def test_bind_confirmation_is_waited_for():
+    """An item that binds does not move until the popup is answered. That is not
+    a failure, and the handover has to complete once it is confirmed."""
+    lua = boot()
+    scenario(lua)
+    lua.execute("FireEvent('LOOT_OPENED')")
+    lua.execute("GiveMasterLoot = function() end")   # nothing moves until confirmed
+    lua.eval("function() return RR.HandOut('Borkk', %s) end" % repr(AXE).replace("'", '"'))()
+    lua.execute("FireEvent('LOOT_BIND_CONFIRM', 1)")
+    lua.execute("RunTimers()")
+
+    assert len(lua.eval("RR.rollHistory")) == 0, "recorded before the popup was answered"
+    said = " ".join(str(v) for v in lua.eval("printed").values())
+    assert "did NOT go" not in said, "called a bind confirmation a failure: %s" % said
+    assert lua.eval("RR.pendingGive") is not None, "stopped waiting for the confirmation"
+
+    # He answers it: the slot empties, and the handover completes.
+    lua.execute("table.remove(corpse, 1) ; FireEvent('LOOT_SLOT_CLEARED', 1)")
+    assert len(lua.eval("RR.rollHistory")) == 1, "the confirmed handover was never recorded"
 
 
 TESTS = [
@@ -405,6 +445,8 @@ TESTS = [
     ("one off a stack", test_stack_split),
     ("blocked pickup", test_blocked_pickup_is_reported),
     ("corpse beats bag", test_master_loot_still_wins),
+    ("refused handover", test_refused_handover_is_not_recorded),
+    ("bind confirmation", test_bind_confirmation_is_waited_for),
 ]
 
 BROKEN_CHECKS = [
@@ -429,6 +471,12 @@ BROKEN_CHECKS = [
      ("Loot.lua", "if RR.LootWindowOpen() and RR.FindLootSlot(link, RR.UsedSlotsFor(link)) then",
       "if false then"),
      "corpse beats bag"),
+    ("handover recorded without checking the corpse",
+     ("Loot.lua", "if stillThere then", "if false then"),
+     "refused handover"),
+    ("a bind confirmation treated as a failure",
+     ("Loot.lua", "if waiting.bindPrompt then", "if false then"),
+     "bind confirmation"),
 ]
 
 
