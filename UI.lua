@@ -560,14 +560,9 @@ local function BuildWindow()
 
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine(string.format("%d in group, cap %d", size, cap), 0.6, 0.6, 0.6)
-        GameTooltip:AddLine("Roles come from what each player whispered when applying", 0.5, 0.5, 0.5, true)
-        GameTooltip:AddLine("or answered to a class check, then main tank flags, then", 0.5, 0.5, 0.5, true)
-        GameTooltip:AddLine("their build read by inspecting them.", 0.5, 0.5, 0.5, true)
-        if RR.InspectStatus then
-            local read, waiting = RR.InspectStatus()
-            GameTooltip:AddLine(string.format("%d build(s) read, %d waiting for someone to come closer.", read, waiting), 0.5, 0.5, 0.5, true)
-            GameTooltip:AddLine("/rr roles says who is what, and why.", 0.5, 0.5, 0.5, true)
-        end
+        GameTooltip:AddLine("A role only ever comes from the player saying so --", 0.5, 0.5, 0.5, true)
+        GameTooltip:AddLine("in a whisper, or in chat during a class check.", 0.5, 0.5, 0.5, true)
+        GameTooltip:AddLine("Nothing is guessed from anyone's build or spec.", 0.5, 0.5, 0.5, true)
         GameTooltip:Show()
     end)
     compFrame:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -630,9 +625,9 @@ local function BuildWindow()
         if RR.RoleCallActive and RR.RoleCallActive() then
             GameTooltip:AddLine(RR.RoleCallAnswerCount() .. " answered so far. Click to stop early.", 0.6, 0.6, 0.6, true)
         else
-            GameTooltip:AddLine("Answers beat every other source, so this is the", 0.5, 0.5, 0.5, true)
-            GameTooltip:AddLine("fallback when inspecting builds finds nothing.", 0.5, 0.5, 0.5, true)
-            GameTooltip:AddLine("Anyone still silent is listed when it ends.", 0.5, 0.5, 0.5, true)
+            GameTooltip:AddLine("Answers are the only thing that fills the readout,", 0.5, 0.5, 0.5, true)
+            GameTooltip:AddLine("along with whispers. Anyone still silent is listed", 0.5, 0.5, 0.5, true)
+            GameTooltip:AddLine("when it ends, and stays a question mark until they say.", 0.5, 0.5, 0.5, true)
         end
         GameTooltip:Show()
     end)

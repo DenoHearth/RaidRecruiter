@@ -1,3 +1,15 @@
+-- NOT LOADED. Removed from RaidRecruiter.toc on 2026-08-26 at Deniz's
+-- instruction: roles come only from what a player says -- a whisper, or chat
+-- during a class check -- and never from their build or talent spec. Characters
+-- on this server are assembled out of arbitrary spells, and the words a tank
+-- build uses are all over damage-dealer tooltips, so reading a role off a build
+-- turned a raid with one tank into three.
+--
+-- Kept on disk, with tools/test_inspect.py.retired beside it, because the
+-- inspect queue itself (range retries, guid checks, never stealing the player's
+-- own inspect window) was sound and is worth having if build reading is ever
+-- wanted for something that is not a role.
+
 -- Working out what people in the raid actually do, by inspecting their build.
 --
 -- This server has no role API at all. GetInspectSpecialization is stubbed to

@@ -41,75 +41,35 @@ local function ShortName(sender)
     return sender
 end
 
--- Is this message nothing but somebody saying what they are?
---
--- Outside a class check, raid chat is full of the word "tank" -- "who is
--- tanking adds", "tank the second one" -- so a loose match would relabel half
--- the raid off other people's sentences. A plain declaration is different: every
--- word in it is either a role word or filler. "resto", "im healer", "tank/dps",
--- "dps here" pass; "can you tank the adds" does not, because "adds" is neither.
-local FILLER = {
-    ["i"] = true, ["im"] = true, ["i'm"] = true, ["am"] = true, ["me"] = true,
-    ["my"] = true, ["is"] = true, ["are"] = true, ["a"] = true, ["an"] = true,
-    ["the"] = true, ["and"] = true, ["or"] = true, ["here"] = true, ["hi"] = true,
-    ["hey"] = true, ["yo"] = true, ["ok"] = true, ["k"] = true, ["please"] = true,
-    ["pls"] = true, ["plz"] = true, ["ill"] = true, ["i'll"] = true, ["be"] = true,
-    ["can"] = true, ["go"] = true, ["as"] = true, ["for"] = true, ["main"] = true,
-    ["off"] = true, ["100"] = true,
-}
-
-local function IsPlainDeclaration(msg)
-    if not msg or msg == "" then return false end
-
-    local words = 0
-    for word in string.gmatch(string.lower(msg), "[%a'%d]+") do
-        words = words + 1
-        if words > 6 then return false end
-        if not FILLER[word] and not RR.ParseRole(word) then
-            return false
-        end
-    end
-
-    return words > 0
-end
-
-RR.IsPlainRoleDeclaration = IsPlainDeclaration
-
--- One answer. Quiet during a check on purpose: twenty-five confirmations
--- printed into chat is the noise the check was meant to replace, so the
+-- One answer. Quiet on purpose: twenty-five confirmations printed into chat
+-- during a class check is the noise the check was meant to replace, so the
 -- composition readout updates instead and the summary comes at the end.
 --
--- Outside a check it says so in one line, because a role picked up when nobody
--- asked for one is invisible otherwise -- and "it did not update" is exactly
--- what this feature is judged on.
+-- Chat only counts while a check is running. Raid chat is full of the word
+-- "tank" -- "who is tanking adds", "tank the second one" -- and reading it all
+-- the time relabels people off other players' sentences. Asked, then answered:
+-- that is the whole contract. Whispers are the other half and are handled in
+-- Applicants.lua, which never needed a window.
 local function Capture(sender, msg)
+    if not running then return end
+
     local name = ShortName(sender)
     if not name or not msg then return end
 
     local grouped = RR.GroupedNames()
     if not grouped[name] then return end
 
-    -- A check is running: they were asked, so anything with a role word in it is
-    -- an answer. Nobody asked: only a message that is nothing but a declaration.
-    local asked = running
-    if not asked and not IsPlainDeclaration(msg) then return end
-
     local role = RR.ParseRole(msg)
     if not role then return end
 
-    local changed = RR.knownRoles[name] ~= role
     RR.knownRoles[name] = role
-    if asked then answered[name] = role end
+    answered[name] = role
 
     -- Someone still sitting in the applicant list gets their row corrected too:
     -- they are in the group now and this is a better answer than whatever they
     -- whispered while applying.
     local record = RR.GetApplicant and RR.GetApplicant(name)
     if record then record.role = role end
-
-    if not asked and changed then
-        RR.Print("%s: %s", name, role)
-    end
 
     if RR.RefreshComposition then RR.RefreshComposition() end
     if RR.RefreshList then RR.RefreshList() end
@@ -213,10 +173,9 @@ function RR.RoleCall_Init()
     endsAt = 0
     answered = {}
 
-    -- Chat is read for the whole session, not only during a check. The button
-    -- is the loud version of this; somebody typing "resto" in raid chat two
-    -- minutes later still has to land, or the readout is wrong and nobody can
-    -- see why.
+    -- The watcher stays registered for the session; Capture ignores everything
+    -- while no check is running, so there is nothing to unregister and no window
+    -- to miss the edge of.
     if not watcher then
         watcher = CreateFrame("Frame")
         watcher:SetScript("OnEvent", function(self, event, msg, sender)

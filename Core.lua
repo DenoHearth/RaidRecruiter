@@ -125,6 +125,30 @@ function RR.GroupedNames()
     return names
 end
 
+-- Everyone in the group except the player, name -> unit token. Lived in
+-- Inspect.lua until that module was retired; it is roster bookkeeping, not
+-- inspection, and /rr roles still needs it.
+function RR.GroupUnits()
+    local units = {}
+    local raid = GetNumRaidMembers and GetNumRaidMembers() or 0
+    if raid > 0 then
+        for i = 1, raid do
+            local name = GetRaidRosterInfo(i)
+            if name and name ~= UnitName("player") then
+                units[name] = "raid" .. i
+            end
+        end
+        return units
+    end
+
+    local party = GetNumPartyMembers and GetNumPartyMembers() or 0
+    for i = 1, party do
+        local name = UnitName("party" .. i)
+        if name then units[name] = "party" .. i end
+    end
+    return units
+end
+
 -- "Full" is your own cap, not the game's: a 25-man raid group can hold 40, and
 -- the point is to stop taking applicants at the size you are actually running.
 function RR.GroupIsFull()
@@ -147,23 +171,19 @@ end
 
 -- Group composition -----------------------------------------------------------
 --
--- What the group is actually made of, so "12/25" also answers "of what". There
--- is no reliable class-to-role mapping on this server -- characters are built
--- out of any spells they like, so a "mage" can be the tank -- and every source
--- below is therefore something someone declared, or something read off their
--- actual build, never a guess from the class:
+-- Two sources, both of them somebody telling you what they are:
 --
---   1. what the player whispered when they applied ("82 ilvl resto")
---   2. main tank / main assist flags set in the raid frames
---   3. their inspected build (Inspect.lua), for anyone who has been close enough
---   4. the client's own role assignment, if this client has that API at all
+--   1. what they whispered you ("82 ilvl resto")
+--   2. what they wrote in chat during a class check
 --
--- The whisper comes first because it is the only source that exists for every
--- member here: role assignment is an LFG feature this raid is not using, and
--- main tank flags cover two people at most.
+-- Nothing is worked out from a build or a talent spec. That was tried and it was
+-- wrong: characters here are assembled out of whatever spells the player likes,
+-- and the defensive-sounding words a tank build has are all over damage-dealer
+-- tooltips too, so a raid with one tank read as three. Deniz's call, 2026-08-26.
 --
--- Anything left over counts as unknown rather than being folded into DPS: an
--- unknown healer padding the DPS count is worse than an honest question mark.
+-- Anything nobody has declared counts as unknown rather than being folded into
+-- DPS: an unknown healer padding the DPS count is worse than an honest question
+-- mark, and the question mark is what gets the person asked.
 
 local function RoleFromWords(said)
     if not said then return nil end
@@ -175,7 +195,7 @@ local function RoleFromWords(said)
     return nil
 end
 
-local function DeclaredRole(unit, name)
+local function DeclaredRole(name)
     if name then
         local said = RR.knownRoles and RR.knownRoles[name]
         if not said then
@@ -184,26 +204,6 @@ local function DeclaredRole(unit, name)
         end
         local role = RoleFromWords(said)
         if role then return role end
-    end
-
-    if unit and type(GetPartyAssignment) == "function" then
-        local ok, isTank = pcall(GetPartyAssignment, "MAINTANK", unit)
-        if ok and isTank then return "TANK" end
-    end
-
-    -- What their build says, read by inspecting them while they were close enough.
-    -- Below the two declarations above on purpose: a player saying "I heal" beats
-    -- anything worked out from their spell list.
-    if name and RR.InspectedRole then
-        local role = RR.InspectedRole(name)
-        if role then return role end
-    end
-
-    if unit and type(UnitGroupRolesAssigned) == "function" then
-        local ok, role = pcall(UnitGroupRolesAssigned, unit)
-        if ok and (role == "TANK" or role == "HEALER" or role == "DAMAGER") then
-            return role == "DAMAGER" and "DPS" or role
-        end
     end
 
     return nil
@@ -216,8 +216,8 @@ function RR.GroupRoles()
     local counts = { TANK = 0, HEALER = 0, DPS = 0, UNKNOWN = 0 }
     local unknown = {}
 
-    local function Add(unit, name)
-        local role = DeclaredRole(unit, name)
+    local function Add(name)
+        local role = DeclaredRole(name)
         if role then
             counts[role] = counts[role] + 1
         else
@@ -230,21 +230,21 @@ function RR.GroupRoles()
     if raid > 0 then
         for i = 1, raid do
             local name = GetRaidRosterInfo(i)
-            Add("raid" .. i, name)
+            Add(name)
         end
         return counts, unknown
     end
 
     local party = GetNumPartyMembers and GetNumPartyMembers() or 0
     if party > 0 then
-        Add("player", UnitName("player"))
+        Add(UnitName("player"))
         for i = 1, party do
-            Add("party" .. i, UnitName("party" .. i))
+            Add(UnitName("party" .. i))
         end
         return counts, unknown
     end
 
-    Add("player", UnitName("player"))
+    Add(UnitName("player"))
     return counts, unknown
 end
 
@@ -256,8 +256,8 @@ function RR.UnknownRoleNames()
     return unknown
 end
 
--- Who is what, and why. Printed rather than asserted: a role worked out from
--- someone's spell list is only worth having if you can see what it was based on.
+-- Who is what, and where it came from. Printed rather than asserted: the only
+-- answers here are ones somebody gave, so this says who has not answered yet.
 function RR.PrintRoles()
     local units = RR.GroupUnits and RR.GroupUnits() or {}
     local names = { UnitName("player") }
@@ -266,30 +266,22 @@ function RR.PrintRoles()
 
     local shown = 0
     for _, name in ipairs(names) do
-        local role, why, kind
-
         local said = RR.knownRoles and RR.knownRoles[name]
         if not said then
             local record = RR.GetApplicant and RR.GetApplicant(name)
             said = record and record.role
         end
-        if RR.InspectedRole then role, why, kind = RR.InspectedRole(name) end
 
         if said then
             RR.Print("%s: %s -- they told you so", name, said)
-        elseif role then
-            RR.Print("%s: %s -- %s", name, role, why or (kind == "spec" and "from their spec" or "from their build"))
         else
-            RR.Print("%s: not read yet", name)
+            RR.Print("%s: has not said", name)
         end
         shown = shown + 1
     end
 
     if shown == 0 then
         RR.Print("you are not in a group.")
-    elseif RR.InspectStatus then
-        local known, waiting, busy = RR.InspectStatus()
-        RR.Print("%d read, %d waiting%s", known, waiting, busy and (", reading " .. busy) or "")
     end
 end
 
@@ -331,7 +323,6 @@ loader:SetScript("OnEvent", function(self, event, arg1)
         if RR.Broadcast_Init then RR.Broadcast_Init() end
         if RR.Loot_Init then RR.Loot_Init() end
         if RR.LootBag_Init then RR.LootBag_Init() end
-        if RR.Inspect_Init then RR.Inspect_Init() end
         if RR.RoleCall_Init then RR.RoleCall_Init() end
     elseif event == "PLAYER_LOGIN" then
         if RR.UI_Init then RR.UI_Init() end
@@ -376,16 +367,8 @@ SlashCmdList["RAIDRECRUITER"] = function(msg)
         RR.ToggleRoleCall()
     elseif msg == "roles" then
         RR.PrintRoles()
-    elseif msg == "scan" then
-        if not RR.CanInspectBuilds or not RR.CanInspectBuilds() then
-            RR.Print("this client has no build inspection -- roles can only come from whispers and raid flags.")
-        else
-            RR.QueueGroup(true)
-            local _, waiting = RR.InspectStatus()
-            RR.Print("scanning %d group member(s) -- anyone out of range is retried as they come closer.", waiting)
-        end
     elseif msg == "help" then
-        RR.Print("/rr toggles the window. Also: loot, bag, bag clear, check, roles, scan, start, stop, clear, reset.")
+        RR.Print("/rr toggles the window. Also: loot, bag, bag clear, check, roles, start, stop, clear, reset.")
     else
         RR.ToggleWindow()
     end

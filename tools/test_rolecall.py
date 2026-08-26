@@ -184,22 +184,14 @@ def run(mutate=None):
     check("count reset", lua.eval("RR.RoleCallAnswerCount()") == 0)
     lua.eval("RR.ToggleRoleCall()")
     check("stopped early", lua.eval("RR.RoleCallActive()") is False)
-    # Chat is read for the whole session, not only during a check -- but with
-    # nobody asked, only a message that is nothing but a declaration counts.
-    lua.eval('FireEvent("CHAT_MSG_RAID", "can you tank the adds please", "Astrid")')
-    check("sentence ignored when nobody asked", lua.eval('RR.knownRoles["Astrid"]') is None)
-
+    # Chat only counts while a check is running: whispers are the other source,
+    # and nothing else is. A role word in ordinary raid chat changes nothing.
     lua.eval('FireEvent("CHAT_MSG_RAID", "im tank", "Astrid")')
-    check("declaration caught with no check running", lua.eval('RR.knownRoles["Astrid"]') == "Tank")
+    check("chat ignored when no check is running", lua.eval('RR.knownRoles["Astrid"]') is None)
 
-    # ...and that one is worth a line in chat, since nobody asked for it.
-    said = " ".join(str(g.printed[i]) for i in range(1, len(g.printed) + 1))
-    check("late answer reported", "Astrid" in said and "Tank" in said)
-
-    # The same loose sentence during a check is an answer, because they were asked.
     lua.eval("RR.StartRoleCall()")
-    lua.eval('FireEvent("CHAT_MSG_RAID", "can you tank the adds please", "Bjorn")')
-    check("sentence taken while asked", lua.eval('RR.knownRoles["Bjorn"]') == "Tank")
+    lua.eval('FireEvent("CHAT_MSG_RAID", "im tank", "Astrid")')
+    check("chat taken while asked", lua.eval('RR.knownRoles["Astrid"]') == "Tank")
 
     return failures
 
@@ -209,11 +201,9 @@ def run(mutate=None):
 BREAKAGES = {
     "no group filter": ("RoleCall.lua",
                         "if not grouped[name] then return end", ""),
-    "loose match with nobody asking": ("RoleCall.lua",
-                                       "if not asked and not IsPlainDeclaration(msg) then return end", ""),
-    "declaration check too strict": ("RoleCall.lua",
-                                     "if not FILLER[word] and not RR.ParseRole(word) then",
-                                     "if false then"),
+    "reads chat with no check running": ("RoleCall.lua",
+                                         "if not running then return end\n\n    local name = ShortName(sender)",
+                                         "local name = ShortName(sender)"),
     "never expires": ("RoleCall.lua",
                       "if GetTime() >= endsAt then", "if false then"),
     "unknown names not collected": ("Core.lua",
