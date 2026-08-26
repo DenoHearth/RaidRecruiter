@@ -365,10 +365,12 @@ SlashCmdList["RAIDRECRUITER"] = function(msg)
         RR.Print("loot bag emptied.")
     elseif msg == "check" then
         RR.ToggleRoleCall()
+    elseif msg == "ask" then
+        RR.ToggleChase()
     elseif msg == "roles" then
         RR.PrintRoles()
     elseif msg == "help" then
-        RR.Print("/rr toggles the window. Also: loot, bag, bag clear, check, roles, start, stop, clear, reset.")
+        RR.Print("/rr toggles the window. Also: loot, bag, bag clear, check, ask, roles, start, stop, clear, reset.")
     else
         RR.ToggleWindow()
     end

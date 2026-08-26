@@ -193,6 +193,49 @@ def run(mutate=None):
     lua.eval('FireEvent("CHAT_MSG_RAID", "im tank", "Astrid")')
     check("chat taken while asked", lua.eval('RR.knownRoles["Astrid"]') == "Tank")
 
+    lua.eval("RR.StopRoleCall()")
+
+    # Put Astrid back to silent: the chase below is about who has not answered,
+    # and she only answered a moment ago to prove the window gate works.
+    lua.execute('RR.knownRoles["Astrid"] = nil')
+
+    # "Ask the missing": names the people who have not said, then waits for them
+    # with no clock at all.
+    before = len(g.announced)
+    lua.eval("RR.ChaseUnknown()")
+    asked = str(g.announced[len(g.announced)])
+    check("missing named in the call-out", "Astrid" in asked and "Deniz" in asked)
+    check("answerers left out of the call-out", "Bjorn" not in asked)
+    check("one line for two names", len(g.announced) == before + 1)
+    check("chasing", lua.eval("RR.RoleCallMode()") == "chase")
+    check("waiting on two", lua.eval("RR.ChaseRemaining()") == 2)
+
+    # No clock: an hour of ticks does not end it.
+    Tick(3600)
+    check("no time limit", lua.eval("RR.RoleCallActive()") is True)
+
+    # One of them answers.
+    lua.eval('FireEvent("CHAT_MSG_RAID", "healer", "Astrid")')
+    check("answer taken", lua.eval('RR.knownRoles["Astrid"]') == "Healer")
+    check("still waiting on the other", lua.eval("RR.ChaseRemaining()") == 1)
+    check("still running", lua.eval("RR.RoleCallActive()") is True)
+
+    # The last one answers and it ends itself.
+    before = len(g.printed)
+    lua.eval('FireEvent("CHAT_MSG_RAID", "tank", "Deniz")')
+    check("ended when the last answered", lua.eval("RR.RoleCallActive()") is False)
+    said = " ".join(str(g.printed[i]) for i in range(before + 1, len(g.printed) + 1))
+    check("said so", "everyone has answered" in said)
+    check("nothing unknown left", counts(lua)["UNKNOWN"] == 0)
+
+    # Chat after it ended is ignored again.
+    lua.eval('FireEvent("CHAT_MSG_RAID", "im healer", "Deniz")')
+    check("deaf once the chase is over", lua.eval('RR.knownRoles["Deniz"]') == "Tank")
+
+    # Nobody to ask: it says so and starts nothing.
+    lua.eval("RR.ChaseUnknown()")
+    check("no chase with nobody missing", lua.eval("RR.RoleCallActive()") is False)
+
     return failures
 
 
@@ -204,6 +247,13 @@ BREAKAGES = {
     "reads chat with no check running": ("RoleCall.lua",
                                          "if not running then return end\n\n    local name = ShortName(sender)",
                                          "local name = ShortName(sender)"),
+    "chase expires like a check": ("RoleCall.lua",
+                                   "-- chase expires.\n    ticker = C_Timer.NewTicker(1, function()\n        if not running then return end",
+                                   "-- chase expires.\n    ticker = C_Timer.NewTicker(1, function()\n        if not running then return end\n        RR.StopRoleCall()"),
+    "chase never ends itself": ("RoleCall.lua",
+                                "if RR.ChaseRemaining() == 0 then", "if false then"),
+    "chase waits on everyone forever": ("RoleCall.lua",
+                                        "chasing[name] = nil", ""),
     "never expires": ("RoleCall.lua",
                       "if GetTime() >= endsAt then", "if false then"),
     "unknown names not collected": ("Core.lua",

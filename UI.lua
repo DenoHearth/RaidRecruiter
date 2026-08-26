@@ -25,7 +25,7 @@ local messageBox, charCount, intervalSlider, intervalBox, startButton, statusTex
 local searchBox, minIlvlBox, hideGroupedCheck, roleButtons, headerButtons
 local capBox, replyBox
 local footerText, compText, compFrame
-local roleCallButton
+local roleCallButton, chaseButton
 
 -- Focus handling --------------------------------------------------------------
 --
@@ -335,6 +335,9 @@ function RR.RefreshComposition()
     end
 
     compText:SetText(text)
+
+    -- The "Ask the missing" button carries the same number on its face.
+    if RR.RefreshRoleCallUI then RR.RefreshRoleCallUI() end
 end
 
 function RR.RefreshList()
@@ -632,6 +635,48 @@ local function BuildWindow()
         GameTooltip:Show()
     end)
     roleCallButton:SetScript("OnLeave", function(self)
+        local color = self.baseColor or C.accentDim
+        self:SetBackdropColor(color[1], color[2], color[3], 1)
+        GameTooltip:Hide()
+    end)
+
+    -- The follow-up: name the people who still have not said, then wait for
+    -- them. Its own button rather than a mode of the first one, because the two
+    -- are asked at different moments -- the check at the start, this when the
+    -- raid is nearly built and three names are holding up the count.
+    chaseButton = Button(window, "Ask the missing", 120, 20)
+    chaseButton:SetPoint("LEFT", roleCallButton, "RIGHT", 8, 0)
+    chaseButton:SetScript("OnClick", function()
+        if not RR.ToggleChase then
+            RR.Print("this needs a full client restart -- /reload does not pick up a new file.")
+            return
+        end
+        RR.ToggleChase()
+    end)
+    chaseButton:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(C.accent[1], C.accent[2], C.accent[3], 1)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+        GameTooltip:AddLine("Ask the missing", 1, 1, 1)
+        local unknown = RR.UnknownRoleNames and RR.UnknownRoleNames() or {}
+        if RR.RoleCallMode and RR.RoleCallMode() == "chase" then
+            GameTooltip:AddLine("Waiting for an answer from:", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(table.concat(RR.ChaseNames(), ", "), 0.85, 0.75, 0.45, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("No clock on this -- it waits until they answer.", 0.5, 0.5, 0.5, true)
+            GameTooltip:AddLine("Click to stop waiting.", 0.5, 0.5, 0.5, true)
+        elseif #unknown > 0 then
+            GameTooltip:AddLine("Calls out the people who still have not said,", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("by name, then waits for their answer:", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(table.concat(unknown, ", "), 0.85, 0.75, 0.45, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Unlike the class check there is no time limit --", 0.5, 0.5, 0.5, true)
+            GameTooltip:AddLine("it ends when the last of them answers.", 0.5, 0.5, 0.5, true)
+        else
+            GameTooltip:AddLine("Everyone has said what they are.", 0.6, 0.6, 0.6, true)
+        end
+        GameTooltip:Show()
+    end)
+    chaseButton:SetScript("OnLeave", function(self)
         local color = self.baseColor or C.accentDim
         self:SetBackdropColor(color[1], color[2], color[3], 1)
         GameTooltip:Hide()
@@ -989,13 +1034,34 @@ end
 function RR.RefreshRoleCallUI()
     if not roleCallButton then return end
 
-    if RR.RoleCallActive and RR.RoleCallActive() then
+    local active = RR.RoleCallActive and RR.RoleCallActive()
+    local mode = RR.RoleCallMode and RR.RoleCallMode()
+
+    if active and mode == "check" then
         local left = math.floor((RR.RoleCallSecondsLeft() or 0) + 0.5)
         roleCallButton.text:SetText(string.format("Listening %ds -- %d", left, RR.RoleCallAnswerCount()))
         roleCallButton:SetColor(C.warn)
     else
         roleCallButton.text:SetText("Class check")
         roleCallButton:SetColor(C.accentDim)
+    end
+
+    if not chaseButton then return end
+
+    if active and mode == "chase" then
+        chaseButton.text:SetText(string.format("Waiting on %d", RR.ChaseRemaining()))
+        chaseButton:SetColor(C.warn)
+    else
+        -- The count is the whole reason to press it, so it is on the face of the
+        -- button rather than only in the tooltip.
+        local unknown = RR.UnknownRoleNames and RR.UnknownRoleNames() or {}
+        if #unknown > 0 then
+            chaseButton.text:SetText(string.format("Ask the missing (%d)", #unknown))
+            chaseButton:SetColor(C.accentDim)
+        else
+            chaseButton.text:SetText("Ask the missing")
+            chaseButton:SetColor(C.accentDim)
+        end
     end
 end
 

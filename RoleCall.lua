@@ -19,6 +19,8 @@ local running = false
 local endsAt = 0
 local ticker
 local answered = {}     -- name -> role, this call only
+local mode              -- "check" (timed) or "chase" (waits for named people)
+local chasing = {}      -- name -> true, the people a chase is still waiting on
 
 -- Raid and party chat are group-only by the game itself, so a message arriving
 -- on one is already from someone in the group. Say is not, and is filtered
@@ -73,6 +75,18 @@ local function Capture(sender, msg)
 
     if RR.RefreshComposition then RR.RefreshComposition() end
     if RR.RefreshList then RR.RefreshList() end
+
+    -- A chase is waiting on named people, not on a clock. The moment the last
+    -- one answers it is over -- there is nothing left to wait for, and leaving
+    -- chat open after that is how ordinary raid talk gets read as an answer.
+    if mode == "chase" and chasing[name] then
+        chasing[name] = nil
+        if RR.ChaseRemaining() == 0 then
+            RR.StopRoleCall()
+        elseif RR.RefreshRoleCallUI then
+            RR.RefreshRoleCallUI()
+        end
+    end
 end
 
 -- Who is still silent. This is the whole point of the feature -- the gaps, not
@@ -85,6 +99,24 @@ end
 
 function RR.RoleCallActive()
     return running
+end
+
+function RR.RoleCallMode()
+    return mode
+end
+
+-- How many of the people a chase named have still not answered.
+function RR.ChaseRemaining()
+    local count = 0
+    for _ in pairs(chasing) do count = count + 1 end
+    return count
+end
+
+function RR.ChaseNames()
+    local names = {}
+    for name in pairs(chasing) do names[#names + 1] = name end
+    table.sort(names)
+    return names
 end
 
 function RR.RoleCallSecondsLeft()
@@ -119,6 +151,8 @@ function RR.StartRoleCall()
     if seconds > 300 then seconds = 300 end
 
     answered = {}
+    chasing = {}
+    mode = "check"
     running = true
     endsAt = GetTime() + seconds
 
@@ -136,23 +170,113 @@ function RR.StartRoleCall()
     if RR.RefreshRoleCallUI then RR.RefreshRoleCallUI() end
 end
 
+-- Ask the people who still have not said, by name, and then wait for them.
+--
+-- The class check is a timed shout at everybody; this is the follow-up, and it
+-- has no clock: raiders answer when they alt-tab back, which is a minute after
+-- any window would have closed. It ends when the last named person answers, or
+-- when the button is clicked again.
+--
+-- Chat truncates at 255 characters, so a raid full of silent people goes out in
+-- several lines rather than one that stops mid-name.
+function RR.ChaseUnknown()
+    local size = RR.GroupSize()
+    if size <= 1 then
+        RR.Print("you are not in a group -- nobody to ask.")
+        return
+    end
+
+    local missing = RR.UnknownRoleNames()
+    if #missing == 0 then
+        RR.Print("everyone has said what they are -- nobody left to ask.")
+        return
+    end
+
+    -- A check already running is replaced, not stacked. Quietly: its summary
+    -- would name the same people this is about to ask.
+    if running then RR.StopRoleCall(true) end
+
+    local PREFIX = "Still need a role from: "
+    local SUFFIX = " -- write it in chat."
+    local room = RR.MAX_MESSAGE - string.len(PREFIX) - string.len(SUFFIX)
+
+    local lines, current = {}, ""
+    for _, name in ipairs(missing) do
+        local piece = (current == "") and name or (current .. ", " .. name)
+        if string.len(piece) > room and current ~= "" then
+            lines[#lines + 1] = current
+            current = name
+        else
+            current = piece
+        end
+    end
+    if current ~= "" then lines[#lines + 1] = current end
+
+    answered = {}
+    chasing = {}
+    for _, name in ipairs(missing) do chasing[name] = true end
+    mode = "chase"
+    running = true
+    endsAt = 0
+
+    for index, line in ipairs(lines) do
+        local message = PREFIX .. line .. SUFFIX
+        if index == 1 then
+            RR.Announce(message)
+        else
+            -- Spaced out: the server drops messages fired in the same instant,
+            -- and a dropped line looks like a sent one from in here.
+            C_Timer.After((index - 1) * 0.8, function() RR.Announce(message) end)
+        end
+    end
+
+    -- The ticker is only here to keep the button's count fresh; nothing in a
+    -- chase expires.
+    ticker = C_Timer.NewTicker(1, function()
+        if not running then return end
+        if RR.RefreshRoleCallUI then RR.RefreshRoleCallUI() end
+    end)
+
+    RR.Print("waiting on %d player(s): %s", #missing, table.concat(missing, ", "))
+    if RR.RefreshRoleCallUI then RR.RefreshRoleCallUI() end
+end
+
+function RR.ToggleChase()
+    if running and mode == "chase" then
+        RR.StopRoleCall()
+    else
+        RR.ChaseUnknown()
+    end
+end
+
 function RR.StopRoleCall(quiet)
     if ticker then
         ticker:Cancel()
         ticker = nil
     end
     local wasRunning = running
+    local wasMode = mode
     running = false
     endsAt = 0
+    mode = nil
 
     if wasRunning and not quiet then
-        local count = RR.RoleCallAnswerCount()
         local missing = StillUnknown()
-        RR.Print("class check done -- %d answered.", count)
-        if #missing > 0 then
-            RR.Print("still unknown: %s", table.concat(missing, ", "))
+        if wasMode == "chase" then
+            if #missing == 0 then
+                RR.Print("everyone has answered.")
+            else
+                RR.Print("stopped waiting -- still nothing from: %s", table.concat(missing, ", "))
+            end
+        else
+            RR.Print("class check done -- %d answered.", RR.RoleCallAnswerCount())
+            if #missing > 0 then
+                RR.Print("still unknown: %s", table.concat(missing, ", "))
+            end
         end
     end
+
+    chasing = {}
 
     if RR.RefreshComposition then RR.RefreshComposition() end
     if RR.RefreshRoleCallUI then RR.RefreshRoleCallUI() end
@@ -171,7 +295,9 @@ function RR.RoleCall_Init()
     -- claiming a check is still listening.
     running = false
     endsAt = 0
+    mode = nil
     answered = {}
+    chasing = {}
 
     -- The watcher stays registered for the session; Capture ignores everything
     -- while no check is running, so there is nothing to unregister and no window
