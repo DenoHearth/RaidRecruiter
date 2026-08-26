@@ -1,0 +1,17 @@
+# Editor / OS noise
+desktop.ini
+Thumbs.db
+*~
+
+# Working backups made while patching
+*.bak
+*.bak_*
+*_backup_*
+
+# Large or third-party media that must not be redistributed
+*.mp3
+*.ogg
+*.wav
+*.zip
+*.mpq
+Music/
