@@ -123,12 +123,27 @@ RR.InspectReadable = Readable
 -- description, so a Conquest of Azeroth ability nobody has ever heard of is
 -- classified the same way a base game one is, with no list to keep up to date.
 local HEAL_WORDS = { "heals ", "healing", "restores %d+ health", "restore health" }
-local TANK_WORDS = { "taunt", "forcing", "threat", "damage taken", "block", "parry",
-                     "absorb", "shield yourself", "reduces damage" }
+
+-- Narrow on purpose, and only ever used to say "this build is not plain damage"
+-- -- never to call somebody a tank. Measured against the 515 scraped Conquest of
+-- Azeroth tooltips in C:\Ascension\CoA_Data: of spells that are crowd control
+-- and nothing else, 10% mention "damage taken", 4.5% mention "threat" and 1.6%
+-- mention "absorb" -- because damage-taken debuffs, threat drops and caster
+-- shields are damage-dealer spells. In a twenty-spell build that is about three
+-- false hits, which is exactly what a "three defensive spells means tank" rule
+-- needed, and it is why this raid read as three tanks when it had one.
+local TANK_WORDS = { "block", "parry", "shield yourself", "reduces damage taken",
+                     "damage you take", "increases your armor" }
 
 -- A taunt is not evidence, it is proof: nobody puts one in a build they do not
--- tank with.
-local DECISIVE_TANK = { "taunt", "forcing it to attack you", "forcing them to attack you" }
+-- tank with. The wording has to be the real thing -- a bare "forcing" also
+-- matches fears and charms ("forcing them to flee").
+local DECISIVE_TANK = { "taunts", "forcing it to attack you",
+                        "forcing them to attack you", "forcing the target to attack you" }
+
+-- ... except where the tooltip is talking about not being taunted.
+local NOT_A_TAUNT = { "cannot be taunted", "immune to taunt", "taunt immun",
+                      "resists taunt", "unaffected by taunt" }
 
 local function Describe(spellID)
     if not spellID then return nil, nil end
@@ -164,7 +179,7 @@ local function ScoreSpells(spellIDs)
     for _, spellID in ipairs(spellIDs) do
         local name, desc = Describe(spellID)
         if desc then
-            if MatchesAny(desc, DECISIVE_TANK) then
+            if MatchesAny(desc, DECISIVE_TANK) and not MatchesAny(desc, NOT_A_TAUNT) then
                 taunt = taunt or name
             end
             if MatchesAny(desc, HEAL_WORDS) then
@@ -303,24 +318,25 @@ function RR.ReadInspected(unit)
         }
     end
 
-    -- Healing beats mitigation on a tie: mitigation words show up in plenty of
-    -- healer spells ("absorb", "reduces damage"), the reverse is much rarer.
-    if heals > 0 and heals >= tanks then
+    -- Three healing spells, not one: the same measurement says 7% of spells that
+    -- do no healing at all still say "healing" somewhere in their tooltip, so a
+    -- single hit in a twenty-spell build is noise. A real healer clears this
+    -- easily.
+    if heals >= 3 and heals > tanks then
         return {
             role = "HEALER",
-            why = string.format("%d healing spell%s%s", heals, heals == 1 and "" or "s", Named(healNames)),
+            why = string.format("%d healing spells%s", heals, Named(healNames)),
             kind = "build",
             at = time(),
         }
     end
 
-    if tanks > heals and tanks >= 3 then
-        return {
-            role = "TANK",
-            why = string.format("%d defensive spells%s, no healing", tanks, Named(tankNames)),
-            kind = "build",
-            at = time(),
-        }
+    -- No tank verdict from counting. A defensive-looking build with no taunt in
+    -- it is left unknown rather than guessed at: the guess was wrong three times
+    -- out of four in a live raid, and a wrong tank is worse than a question
+    -- mark, which at least gets the person asked.
+    if tanks >= 3 then
+        return nil, string.format("a defensive-looking build with no taunt in it%s -- ask them", Named(tankNames))
     end
 
     return {

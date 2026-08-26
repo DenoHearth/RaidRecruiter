@@ -41,9 +41,47 @@ local function ShortName(sender)
     return sender
 end
 
--- One answer. Quiet on purpose: twenty-five confirmations printed into chat
--- during a class check is the noise the check was meant to replace, so the
+-- Is this message nothing but somebody saying what they are?
+--
+-- Outside a class check, raid chat is full of the word "tank" -- "who is
+-- tanking adds", "tank the second one" -- so a loose match would relabel half
+-- the raid off other people's sentences. A plain declaration is different: every
+-- word in it is either a role word or filler. "resto", "im healer", "tank/dps",
+-- "dps here" pass; "can you tank the adds" does not, because "adds" is neither.
+local FILLER = {
+    ["i"] = true, ["im"] = true, ["i'm"] = true, ["am"] = true, ["me"] = true,
+    ["my"] = true, ["is"] = true, ["are"] = true, ["a"] = true, ["an"] = true,
+    ["the"] = true, ["and"] = true, ["or"] = true, ["here"] = true, ["hi"] = true,
+    ["hey"] = true, ["yo"] = true, ["ok"] = true, ["k"] = true, ["please"] = true,
+    ["pls"] = true, ["plz"] = true, ["ill"] = true, ["i'll"] = true, ["be"] = true,
+    ["can"] = true, ["go"] = true, ["as"] = true, ["for"] = true, ["main"] = true,
+    ["off"] = true, ["100"] = true,
+}
+
+local function IsPlainDeclaration(msg)
+    if not msg or msg == "" then return false end
+
+    local words = 0
+    for word in string.gmatch(string.lower(msg), "[%a'%d]+") do
+        words = words + 1
+        if words > 6 then return false end
+        if not FILLER[word] and not RR.ParseRole(word) then
+            return false
+        end
+    end
+
+    return words > 0
+end
+
+RR.IsPlainRoleDeclaration = IsPlainDeclaration
+
+-- One answer. Quiet during a check on purpose: twenty-five confirmations
+-- printed into chat is the noise the check was meant to replace, so the
 -- composition readout updates instead and the summary comes at the end.
+--
+-- Outside a check it says so in one line, because a role picked up when nobody
+-- asked for one is invisible otherwise -- and "it did not update" is exactly
+-- what this feature is judged on.
 local function Capture(sender, msg)
     local name = ShortName(sender)
     if not name or not msg then return end
@@ -51,17 +89,27 @@ local function Capture(sender, msg)
     local grouped = RR.GroupedNames()
     if not grouped[name] then return end
 
+    -- A check is running: they were asked, so anything with a role word in it is
+    -- an answer. Nobody asked: only a message that is nothing but a declaration.
+    local asked = running
+    if not asked and not IsPlainDeclaration(msg) then return end
+
     local role = RR.ParseRole(msg)
     if not role then return end
 
+    local changed = RR.knownRoles[name] ~= role
     RR.knownRoles[name] = role
-    answered[name] = role
+    if asked then answered[name] = role end
 
     -- Someone still sitting in the applicant list gets their row corrected too:
     -- they are in the group now and this is a better answer than whatever they
     -- whispered while applying.
     local record = RR.GetApplicant and RR.GetApplicant(name)
     if record then record.role = role end
+
+    if not asked and changed then
+        RR.Print("%s: %s", name, role)
+    end
 
     if RR.RefreshComposition then RR.RefreshComposition() end
     if RR.RefreshList then RR.RefreshList() end
@@ -114,19 +162,6 @@ function RR.StartRoleCall()
     running = true
     endsAt = GetTime() + seconds
 
-    if not watcher then
-        watcher = CreateFrame("Frame")
-        watcher:SetScript("OnEvent", function(self, event, msg, sender)
-            if not running then return end
-            Capture(sender, msg)
-        end)
-    end
-    -- Registering an event this client does not know throws, and one bad name
-    -- must not cost the others their registration.
-    for _, event in ipairs(CHAT_EVENTS) do
-        pcall(watcher.RegisterEvent, watcher, event)
-    end
-
     RR.Announce(message)
 
     ticker = C_Timer.NewTicker(1, function()
@@ -146,10 +181,6 @@ function RR.StopRoleCall(quiet)
         ticker:Cancel()
         ticker = nil
     end
-    if watcher then
-        watcher:UnregisterAllEvents()
-    end
-
     local wasRunning = running
     running = false
     endsAt = 0
@@ -176,9 +207,25 @@ function RR.ToggleRoleCall()
 end
 
 function RR.RoleCall_Init()
-    -- A reload kills the ticker and the registration with it; make sure the
-    -- flag matches reality rather than claiming a check is still listening.
+    -- A reload kills the ticker; make sure the flag matches reality rather than
+    -- claiming a check is still listening.
     running = false
     endsAt = 0
     answered = {}
+
+    -- Chat is read for the whole session, not only during a check. The button
+    -- is the loud version of this; somebody typing "resto" in raid chat two
+    -- minutes later still has to land, or the readout is wrong and nobody can
+    -- see why.
+    if not watcher then
+        watcher = CreateFrame("Frame")
+        watcher:SetScript("OnEvent", function(self, event, msg, sender)
+            Capture(sender, msg)
+        end)
+    end
+    -- Registering an event this client does not know throws, and one bad name
+    -- must not cost the others their registration.
+    for _, event in ipairs(CHAT_EVENTS) do
+        pcall(watcher.RegisterEvent, watcher, event)
+    end
 end

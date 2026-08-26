@@ -184,8 +184,22 @@ def run(mutate=None):
     check("count reset", lua.eval("RR.RoleCallAnswerCount()") == 0)
     lua.eval("RR.ToggleRoleCall()")
     check("stopped early", lua.eval("RR.RoleCallActive()") is False)
-    lua.eval('FireEvent("CHAT_MSG_RAID", "tank", "Halvar")')
-    check("deaf after stopping", lua.eval('RR.knownRoles["Halvar"]') == "DPS")
+    # Chat is read for the whole session, not only during a check -- but with
+    # nobody asked, only a message that is nothing but a declaration counts.
+    lua.eval('FireEvent("CHAT_MSG_RAID", "can you tank the adds please", "Astrid")')
+    check("sentence ignored when nobody asked", lua.eval('RR.knownRoles["Astrid"]') is None)
+
+    lua.eval('FireEvent("CHAT_MSG_RAID", "im tank", "Astrid")')
+    check("declaration caught with no check running", lua.eval('RR.knownRoles["Astrid"]') == "Tank")
+
+    # ...and that one is worth a line in chat, since nobody asked for it.
+    said = " ".join(str(g.printed[i]) for i in range(1, len(g.printed) + 1))
+    check("late answer reported", "Astrid" in said and "Tank" in said)
+
+    # The same loose sentence during a check is an answer, because they were asked.
+    lua.eval("RR.StartRoleCall()")
+    lua.eval('FireEvent("CHAT_MSG_RAID", "can you tank the adds please", "Bjorn")')
+    check("sentence taken while asked", lua.eval('RR.knownRoles["Bjorn"]') == "Tank")
 
     return failures
 
@@ -195,12 +209,11 @@ def run(mutate=None):
 BREAKAGES = {
     "no group filter": ("RoleCall.lua",
                         "if not grouped[name] then return end", ""),
-    # Two things keep a closed check from reading chat: the registration is
-    # dropped and the handler checks the flag. Either alone is enough, so the
-    # mutation has to remove both.
-    "still listens when closed": ("RoleCall.lua",
-                                  "if not running then return end\n            Capture(sender, msg)",
-                                  "Capture(sender, msg)\n            watcher.UnregisterAllEvents = function() end"),
+    "loose match with nobody asking": ("RoleCall.lua",
+                                       "if not asked and not IsPlainDeclaration(msg) then return end", ""),
+    "declaration check too strict": ("RoleCall.lua",
+                                     "if not FILLER[word] and not RR.ParseRole(word) then",
+                                     "if false then"),
     "never expires": ("RoleCall.lua",
                       "if GetTime() >= endsAt then", "if false then"),
     "unknown names not collected": ("Core.lua",

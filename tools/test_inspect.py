@@ -186,6 +186,9 @@ def world(lua, extra=""):
             [200] = { name = "Growl", desc = "%s" },
             [300] = { name = "Mortal Strike", desc = "%s" },
             [400] = { name = "Shield Wall", desc = "%s" },
+            [102] = { name = "Flash of Light", desc = "%s" },
+            [401] = { name = "Shield Block", desc = "%s" },
+            [402] = { name = "Defensive Stance", desc = "%s" },
         }
         entries = {
             [1] = { Spells = { 100 } },
@@ -193,8 +196,12 @@ def world(lua, extra=""):
             [3] = { Spells = { 200 } },
             [4] = { Spells = { 300 } },
             [5] = { Spells = { 400 } },
+            [6] = { Spells = { 102 } },
+            [7] = { Spells = { 401 } },
+            [8] = { Spells = { 402 } },
         }
-    """ % (HEAL_DESC, HEAL_DESC, TAUNT_DESC, DPS_DESC, DEFENSIVE_DESC))
+    """ % (HEAL_DESC, HEAL_DESC, TAUNT_DESC, DPS_DESC, DEFENSIVE_DESC, HEAL_DESC,
+           DEFENSIVE_DESC, DEFENSIVE_DESC))
     lua.execute(extra)
 
 
@@ -242,7 +249,8 @@ def test_healer_from_build():
     lua = boot()
     world(lua, """
         raid = { { name = "Aluna", guid = "g2", class = "HERO", inRange = true,
-                   build = { { EntryId = 1, Rank = 1 }, { EntryId = 2, Rank = 1 }, { EntryId = 4, Rank = 1 } } } }
+                   build = { { EntryId = 1, Rank = 1 }, { EntryId = 2, Rank = 1 },
+                             { EntryId = 6, Rank = 1 }, { EntryId = 4, Rank = 1 } } } }
         RR.QueueGroup(true)
         Tick(2)
         FireEvent("INSPECT_CHARACTER_ADVANCEMENT_RESULT", "CA_INSPECT_OK")
@@ -328,13 +336,13 @@ def test_what_they_said_beats_their_build():
     lua = boot()
     world(lua, """
         raid = { { name = "Aluna", guid = "g2", class = "HERO", inRange = true,
-                   build = { { EntryId = 1, Rank = 1 }, { EntryId = 2, Rank = 1 } } } }
+                   build = { { EntryId = 1, Rank = 1 }, { EntryId = 2, Rank = 1 }, { EntryId = 6, Rank = 1 } } } }
         RR.QueueGroup(true)
         Tick(2)
         FireEvent("INSPECT_CHARACTER_ADVANCEMENT_RESULT", "CA_INSPECT_OK")
         RR.knownRoles = { Aluna = "Tank" }
     """)
-    counts = lua.eval("RR.GroupRoles()")
+    counts = lua.eval("(RR.GroupRoles())")
     assert counts.TANK == 1, "the whisper did not win over the inspected build: tanks=%s" % counts.TANK
     assert counts.HEALER == 0, "the build overrode what they told him"
 
@@ -343,14 +351,51 @@ def test_build_fills_an_unknown():
     lua = boot()
     world(lua, """
         raid = { { name = "Aluna", guid = "g2", class = "HERO", inRange = true,
-                   build = { { EntryId = 1, Rank = 1 }, { EntryId = 2, Rank = 1 } } } }
+                   build = { { EntryId = 1, Rank = 1 }, { EntryId = 2, Rank = 1 }, { EntryId = 6, Rank = 1 } } } }
         RR.QueueGroup(true)
         Tick(2)
         FireEvent("INSPECT_CHARACTER_ADVANCEMENT_RESULT", "CA_INSPECT_OK")
     """)
-    counts = lua.eval("RR.GroupRoles()")
+    counts = lua.eval("(RR.GroupRoles())")
     assert counts.HEALER == 1, "the inspected healer was not counted: %s" % counts.HEALER
     assert counts.UNKNOWN == 0, "the healer was still counted as unknown as well: %s" % counts.UNKNOWN
+
+
+def test_defensive_build_without_a_taunt_is_not_a_tank():
+    # The live bug: a raid with one tank read as three. Defensive-sounding words
+    # are all over damage-dealer tooltips (a "damage taken" debuff you put ON the
+    # boss, a threat drop, a caster shield), so counting them made tanks out of
+    # damage dealers. Without a taunt the answer is now "unknown" -- which puts
+    # the name in the tooltip list and gets the person asked.
+    lua = boot()
+    world(lua, """
+        raid = { { name = "Borkk", guid = "g1", class = "HERO", inRange = true,
+                   build = { { EntryId = 5, Rank = 1 }, { EntryId = 7, Rank = 1 },
+                             { EntryId = 8, Rank = 1 }, { EntryId = 4, Rank = 1 } } } }
+        RR.QueueGroup(true)
+        Tick(2)
+        FireEvent("INSPECT_CHARACTER_ADVANCEMENT_RESULT", "CA_INSPECT_OK")
+    """)
+    role = lua.eval("function() return RR.InspectedRole('Borkk') end")()
+    assert role is None, "a defensive build with no taunt was called %s" % role
+    counts = lua.eval("(RR.GroupRoles())")
+    assert counts.TANK == 0, "still counted as a tank: %s" % counts.TANK
+    assert counts.UNKNOWN == 1, "not left as a question mark: %s" % counts.UNKNOWN
+
+
+def test_one_heal_word_is_not_a_healer():
+    # 7% of the scraped Conquest of Azeroth tooltips say "healing" while doing
+    # none, so a single hit in a build is noise, not a healer.
+    lua = boot()
+    world(lua, """
+        raid = { { name = "Kettil", guid = "g4", class = "HERO", inRange = true,
+                   build = { { EntryId = 1, Rank = 1 }, { EntryId = 4, Rank = 1 } } } }
+        RR.QueueGroup(true)
+        Tick(2)
+        FireEvent("INSPECT_CHARACTER_ADVANCEMENT_RESULT", "CA_INSPECT_OK")
+    """)
+    role, why, _ = lua.eval("function() return RR.InspectedRole('Kettil') end")()
+    assert role == "DPS", "one healing spell made a healer: %s (%s)" % (role, why)
 
 
 TESTS = [
@@ -363,6 +408,8 @@ TESTS = [
     ("unit swapped under us", test_unit_swapped_under_us_is_discarded),
     ("never steals his inspect window", test_never_scans_while_his_own_inspect_window_is_open),
     ("what they said wins", test_what_they_said_beats_their_build),
+    ("defensive build is not a tank", test_defensive_build_without_a_taunt_is_not_a_tank),
+    ("one heal word is not a healer", test_one_heal_word_is_not_a_healer),
     ("build fills an unknown", test_build_fills_an_unknown),
 ]
 
@@ -386,6 +433,13 @@ BROKEN_CHECKS = [
     ("taunt no longer decisive",
      ("Inspect.lua", "if taunt then", "if false then"),
      "a taunt means tank"),
+    ("tanks guessed by counting again",
+     ("Inspect.lua", "if tanks >= 3 then\n        return nil,",
+      "if tanks >= 3 then\n        return { role = \"TANK\", kind = \"build\", why = \"counted\", at = time() },"),
+     "defensive build is not a tank"),
+    ("one heal word is enough again",
+     ("Inspect.lua", "if heals >= 3 and heals > tanks then", "if heals >= 1 then"),
+     "one heal word is not a healer"),
 ]
 
 
