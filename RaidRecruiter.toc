@@ -1,8 +1,8 @@
 ## Interface: 30300
 ## Title: Raid Recruiter
-## Notes: Two tools for running a raid. Recruiting: posts your LFM message to the channels you pick on a timer and collects everyone who whispers you into a sortable applicant list with their item level, level and role. Loot rolls: puts a boss drop up for roll in /rw, tracks who rolled what, and hands the item to the winner. /rr
+## Notes: Two tools for running a raid. Recruiting: posts your LFM message to the channels you pick on a timer and collects everyone who whispers you into a sortable applicant list with their item level, level and role. Loot rolls: puts a boss drop up for roll in /rw, tracks who rolled what, and hands the item to the winner -- from the corpse by master loot, or by trade when you already looted it into your own bags. /rr
 ## Author: Deniz
-## Version: 1.1
+## Version: 1.2
 ## SavedVariablesPerCharacter: RaidRecruiterDB
 
 Libs\LibStub\LibStub.lua
@@ -14,5 +14,6 @@ Core.lua
 Applicants.lua
 Broadcast.lua
 Loot.lua
+LootBag.lua
 UI.lua
 LootUI.lua

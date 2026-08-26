@@ -68,6 +68,8 @@ RR.defaults = {
     rollSeconds = 15,       -- how long a loot roll stays open, announced in /rw
     rollCountdownFrom = 5,  -- start the 5,4,3,2,1 countdown at this many left
     lootMinQuality = 3,     -- blue and up; grey/green trash never needs a roll
+    stash = {},             -- boss drops now in your own bags, still to hand out
+    stashHours = 12,        -- how long a remembered drop stays in the list
 }
 
 RR.MIN_INTERVAL = 10
@@ -264,6 +266,7 @@ loader:SetScript("OnEvent", function(self, event, arg1)
         if RR.Applicants_Init then RR.Applicants_Init() end
         if RR.Broadcast_Init then RR.Broadcast_Init() end
         if RR.Loot_Init then RR.Loot_Init() end
+        if RR.LootBag_Init then RR.LootBag_Init() end
     elseif event == "PLAYER_LOGIN" then
         if RR.UI_Init then RR.UI_Init() end
     end
@@ -290,8 +293,21 @@ SlashCmdList["RAIDRECRUITER"] = function(msg)
             RR.ToggleWindow()
         end
         if RR.SelectPage then RR.SelectPage("loot") end
+    elseif msg == "bag" then
+        local stash = RR.StashList()
+        if #stash == 0 then
+            RR.Print("the loot bag is empty.")
+        end
+        for _, entry in ipairs(stash) do
+            RR.Print("%s x%d from %s -- %d in your bags",
+                entry.link, entry.count or 1, entry.source or "?", RR.BagCount(entry.link))
+        end
+    elseif msg == "bag clear" then
+        RR.StashClear(false)
+        if RR.RefreshLootUI then RR.RefreshLootUI() end
+        RR.Print("loot bag emptied.")
     elseif msg == "help" then
-        RR.Print("/rr toggles the window. Also: loot, start, stop, clear, reset.")
+        RR.Print("/rr toggles the window. Also: loot, bag, bag clear, start, stop, clear, reset.")
     else
         RR.ToggleWindow()
     end

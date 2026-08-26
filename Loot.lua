@@ -111,6 +111,15 @@ function RR.ScanLoot()
                     byLink[link] = entry
                     items[#items + 1] = entry
                 end
+                -- Remember what this corpse was offering even after the slot is
+                -- emptied: the "you receive loot" line that tells the bag list an
+                -- item is now yours arrives after the slot has already cleared.
+                if RR.corpseSnapshot then
+                    RR.corpseSnapshot[link] = RR.corpseSnapshot[link] or {
+                        name = name, quality = quality, texture = texture,
+                    }
+                    RR.corpseSeenAt = GetTime()
+                end
             end
         end
     end
@@ -472,6 +481,107 @@ function RR.MasterLootCandidates(slot)
     return candidates
 end
 
+-- What the winner rolled, if this handover belongs to the roll in progress.
+local function WinningRoll(name, link)
+    local roll = RR.activeRoll
+    if not roll or roll.link ~= link then return nil end
+
+    -- Look in the tied group as well: handing a contested copy to one of the
+    -- tied players is a legitimate call, and their roll still belongs in the
+    -- announcement.
+    local winners, tied = RR.RollOutcome()
+    for _, entry in ipairs(winners) do
+        if entry.name == name then return entry.roll end
+    end
+    for _, entry in ipairs(tied) do
+        if entry.name == name then return entry.roll end
+    end
+    for _, entry in ipairs(roll.settled or {}) do
+        if entry.name == name then return entry.roll end
+    end
+    return nil
+end
+
+-- The item really changed hands. Announce it, log it, and close the roll if
+-- every copy is out.
+--
+-- Announcing the handover is separate from announcing the winner on purpose: the
+-- two are different moments -- a reroll, a trade, or the leader overruling the
+-- roll all happen in between -- so the raid is told where the item really went.
+function RR.RecordHandover(name, link, slot)
+    local roll = RR.activeRoll
+    local wonWith = WinningRoll(name, link)
+
+    if wonWith then
+        Announce(string.format("%s goes to %s (%d).", link, name, wonWith))
+    else
+        Announce(string.format("%s goes to %s.", link, name))
+    end
+
+    RR.rollHistory[#RR.rollHistory + 1] = {
+        link = link,
+        winner = name,
+        roll = wonWith,
+        at = time(),
+        source = RR.lootSource,
+    }
+    while #RR.rollHistory > 25 do
+        table.remove(RR.rollHistory, 1)
+    end
+
+    if roll and roll.link == link then
+        roll.given[name] = true
+        if slot then
+            roll.usedSlots = roll.usedSlots or {}
+            roll.usedSlots[slot] = true
+        end
+
+        local handed = 0
+        for _ in pairs(roll.given) do handed = handed + 1 end
+
+        -- With two copies up, the roll stays open after the first handover so
+        -- the second copy can go to the runner-up from the same roll.
+        if handed >= (roll.copies or 1) then
+            RR.activeRoll = nil
+            if rollTicker then rollTicker:Cancel() ; rollTicker = nil end
+        end
+    end
+
+    if RR.RefreshLootUI then RR.RefreshLootUI() end
+end
+
+-- One entry point for the UI: hand this item to this player, from wherever it
+-- actually is. The corpse comes first because master loot is instant and needs
+-- no cooperation from the winner; a copy in your own bags is a trade.
+function RR.HandOut(name, link)
+    if not name or not link then
+        return false, "nothing selected"
+    end
+
+    if RR.LootWindowOpen() and RR.FindLootSlot(link, RR.UsedSlotsFor(link)) then
+        return RR.GiveTo(name, link)
+    end
+
+    if RR.BagCount and RR.BagCount(link) > 0 then
+        return RR.TradeTo(name, link)
+    end
+
+    if RR.LootWindowOpen() then
+        return false, "that item is neither in this corpse nor in your bags"
+    end
+    return false, "that item is not in your bags -- reopen the corpse, or trade it by hand"
+end
+
+-- Slots the roll in progress has already handed out, so a second copy never
+-- targets the slot the first one came from.
+function RR.UsedSlotsFor(link)
+    local roll = RR.activeRoll
+    if roll and roll.link == link then return roll.usedSlots end
+    return nil
+end
+
+-- Master loot handover.
+--
 -- Returns ok, message. Never throws: every failure here is a normal situation
 -- (window closed, item already taken, player out of range) and needs to be
 -- readable, not a Lua error.
@@ -507,59 +617,7 @@ function RR.GiveTo(name, link)
         return false, "GiveMasterLoot failed: " .. tostring(err)
     end
 
-    -- Announce the handover, not just the roll result. The winner line and the
-    -- item actually changing hands are two different moments -- a reroll, a
-    -- trade, or the leader overruling the roll all happen in between -- so the
-    -- raid needs to be told where the item really went.
-    local wonWith
-    if roll and roll.link == link then
-        -- Look in the tied group as well: handing a contested copy to one of the
-        -- tied players is a legitimate call, and their roll still belongs in the
-        -- announcement.
-        local winners, tied = RR.RollOutcome()
-        for _, entry in ipairs(winners) do
-            if entry.name == name then wonWith = entry.roll end
-        end
-        for _, entry in ipairs(tied) do
-            if entry.name == name then wonWith = entry.roll end
-        end
-        for _, entry in ipairs(roll.settled or {}) do
-            if entry.name == name then wonWith = entry.roll end
-        end
-    end
-
-    if wonWith then
-        Announce(string.format("%s goes to %s (%d).", link, name, wonWith))
-    else
-        Announce(string.format("%s goes to %s.", link, name))
-    end
-
-    RR.rollHistory[#RR.rollHistory + 1] = {
-        link = link,
-        winner = name,
-        roll = wonWith,
-        at = time(),
-        source = RR.lootSource,
-    }
-    while #RR.rollHistory > 25 do
-        table.remove(RR.rollHistory, 1)
-    end
-
-    if roll and roll.link == link then
-        roll.given[name] = true
-        roll.usedSlots = roll.usedSlots or {}
-        roll.usedSlots[slot] = true
-
-        local handed = 0
-        for _ in pairs(roll.given) do handed = handed + 1 end
-
-        -- With two copies up, the roll stays open after the first handover so
-        -- the second copy can go to the runner-up from the same roll.
-        if handed >= (roll.copies or 1) then
-            RR.activeRoll = nil
-            if rollTicker then rollTicker:Cancel() ; rollTicker = nil end
-        end
-    end
+    RR.RecordHandover(name, link, slot)
 
     return true, string.format("%s given to %s", link, name)
 end
@@ -603,7 +661,14 @@ function RR.Loot_Init()
         if event == "CHAT_MSG_SYSTEM" then
             OnRollMessage(arg1)
         elseif event == "LOOT_OPENED" then
-            RR.lootSource = UnitName("target") or RR.lootSource
+            local source = UnitName("target") or RR.lootSource
+            -- A new corpse starts a new snapshot; reopening the same one keeps
+            -- what has already been looted out of it.
+            if source ~= RR.corpseSource then
+                RR.corpseSnapshot = {}
+                RR.corpseSource = source
+            end
+            RR.lootSource = source
             RR.ScanLoot()
             if RR.RefreshLootUI then RR.RefreshLootUI() end
         elseif event == "LOOT_SLOT_CLEARED" then
