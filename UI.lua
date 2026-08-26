@@ -25,6 +25,7 @@ local messageBox, charCount, intervalSlider, intervalBox, startButton, statusTex
 local searchBox, minIlvlBox, hideGroupedCheck, roleButtons, headerButtons
 local capBox, replyBox
 local footerText, compText, compFrame
+local roleCallButton
 
 -- Focus handling --------------------------------------------------------------
 --
@@ -549,8 +550,9 @@ local function BuildWindow()
         GameTooltip:AddDoubleLine("Unknown", counts.UNKNOWN, 0.8, 0.8, 0.8, 0.62, 0.63, 0.68)
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine(string.format("%d in group, cap %d", size, cap), 0.6, 0.6, 0.6)
-        GameTooltip:AddLine("Roles come from what each player whispered when applying,", 0.5, 0.5, 0.5, true)
-        GameTooltip:AddLine("then main tank flags, then their build read by inspecting them.", 0.5, 0.5, 0.5, true)
+        GameTooltip:AddLine("Roles come from what each player whispered when applying", 0.5, 0.5, 0.5, true)
+        GameTooltip:AddLine("or answered to a class check, then main tank flags, then", 0.5, 0.5, 0.5, true)
+        GameTooltip:AddLine("their build read by inspecting them.", 0.5, 0.5, 0.5, true)
         if RR.InspectStatus then
             local read, waiting = RR.InspectStatus()
             GameTooltip:AddLine(string.format("%d build(s) read, %d waiting for someone to come closer.", read, waiting), 0.5, 0.5, 0.5, true)
@@ -589,6 +591,37 @@ local function BuildWindow()
         tab:SetScript("OnClick", function(self) SelectPage(self.page) end)
         tabButtons[i] = tab
     end
+
+    -- Class check. It sits on the tab strip rather than in the recruiting
+    -- column because it is about the group you already have -- the same thing
+    -- the readout above it counts -- and it stays one click away from the loot
+    -- page, which is where you are standing when the raid composition suddenly
+    -- matters.
+    roleCallButton = Button(window, "Class check", 130, 20)
+    roleCallButton:SetPoint("LEFT", tabButtons[#tabButtons], "RIGHT", 16, 0)
+    roleCallButton:SetScript("OnClick", function() RR.ToggleRoleCall() end)
+    roleCallButton:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(C.accent[1], C.accent[2], C.accent[3], 1)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+        GameTooltip:AddLine("Class check", 1, 1, 1)
+        GameTooltip:AddLine("Asks the raid in a raid warning to write their role", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("in chat, then reads the answers out of raid, party", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("and say chat for " .. (tonumber(RR.db.roleCallSeconds) or 60) .. " seconds.", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine(" ")
+        if RR.RoleCallActive and RR.RoleCallActive() then
+            GameTooltip:AddLine(RR.RoleCallAnswerCount() .. " answered so far. Click to stop early.", 0.6, 0.6, 0.6, true)
+        else
+            GameTooltip:AddLine("Answers beat every other source, so this is the", 0.5, 0.5, 0.5, true)
+            GameTooltip:AddLine("fallback when inspecting builds finds nothing.", 0.5, 0.5, 0.5, true)
+            GameTooltip:AddLine("Anyone still silent is listed when it ends.", 0.5, 0.5, 0.5, true)
+        end
+        GameTooltip:Show()
+    end)
+    roleCallButton:SetScript("OnLeave", function(self)
+        local color = self.baseColor or C.accentDim
+        self:SetBackdropColor(color[1], color[2], color[3], 1)
+        GameTooltip:Hide()
+    end)
 
     local PAGE_TOP = HEADER_H + 32
 
@@ -936,6 +969,22 @@ local function BuildWindow()
 end
 
 -- Push saved settings into the widgets.
+-- The button doubles as the countdown while a check is listening: the answer
+-- count is the only progress this feature has, and it belongs where the click
+-- was, not in a chat line per reply.
+function RR.RefreshRoleCallUI()
+    if not roleCallButton then return end
+
+    if RR.RoleCallActive and RR.RoleCallActive() then
+        local left = math.floor((RR.RoleCallSecondsLeft() or 0) + 0.5)
+        roleCallButton.text:SetText(string.format("Listening %ds -- %d", left, RR.RoleCallAnswerCount()))
+        roleCallButton:SetColor(C.warn)
+    else
+        roleCallButton.text:SetText("Class check")
+        roleCallButton:SetColor(C.accentDim)
+    end
+end
+
 function RR.RefreshFilters()
     if not window then return end
     local db = RR.db
@@ -984,6 +1033,7 @@ local function LoadWidgets()
     RR.RefreshFilters()
     RefreshChannels()
     RR.RefreshBroadcastUI()
+    RR.RefreshRoleCallUI()
     RR.RefreshList()
     if RR.RefreshLootUI then RR.RefreshLootUI() end
 

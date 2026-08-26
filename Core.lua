@@ -70,6 +70,10 @@ RR.defaults = {
     lootMinQuality = 3,     -- blue and up; grey/green trash never needs a roll
     stash = {},             -- boss drops now in your own bags, still to hand out
     stashHours = 12,        -- how long a remembered drop stays in the list
+    -- Class check: the fallback when nothing else knows the raid's makeup --
+    -- ask everyone in a raid warning and read the answers out of raid chat.
+    roleCallMessage = "Class check -- write your role in raid chat: tank / healer / dps",
+    roleCallSeconds = 60,   -- how long raid chat is read for answers
 }
 
 RR.MIN_INTERVAL = 10
@@ -315,6 +319,7 @@ loader:SetScript("OnEvent", function(self, event, arg1)
         if RR.Loot_Init then RR.Loot_Init() end
         if RR.LootBag_Init then RR.LootBag_Init() end
         if RR.Inspect_Init then RR.Inspect_Init() end
+        if RR.RoleCall_Init then RR.RoleCall_Init() end
     elseif event == "PLAYER_LOGIN" then
         if RR.UI_Init then RR.UI_Init() end
     end
@@ -354,6 +359,8 @@ SlashCmdList["RAIDRECRUITER"] = function(msg)
         RR.StashClear(false)
         if RR.RefreshLootUI then RR.RefreshLootUI() end
         RR.Print("loot bag emptied.")
+    elseif msg == "check" then
+        RR.ToggleRoleCall()
     elseif msg == "roles" then
         RR.PrintRoles()
     elseif msg == "scan" then
@@ -365,7 +372,7 @@ SlashCmdList["RAIDRECRUITER"] = function(msg)
             RR.Print("scanning %d group member(s) -- anyone out of range is retried as they come closer.", waiting)
         end
     elseif msg == "help" then
-        RR.Print("/rr toggles the window. Also: loot, bag, bag clear, roles, scan, start, stop, clear, reset.")
+        RR.Print("/rr toggles the window. Also: loot, bag, bag clear, check, roles, scan, start, stop, clear, reset.")
     else
         RR.ToggleWindow()
     end
