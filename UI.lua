@@ -548,6 +548,16 @@ local function BuildWindow()
         GameTooltip:AddDoubleLine("Healers", counts.HEALER, 0.8, 0.8, 0.8, 0.35, 0.8, 0.4)
         GameTooltip:AddDoubleLine("DPS", counts.DPS, 0.8, 0.8, 0.8, 0.85, 0.3, 0.3)
         GameTooltip:AddDoubleLine("Unknown", counts.UNKNOWN, 0.8, 0.8, 0.8, 0.62, 0.63, 0.68)
+
+        -- The names behind the question mark, because the number on its own is
+        -- not actionable: what you do about it is call those people out by name
+        -- in raid chat. Wrapped into one line so a raid where nobody answered
+        -- does not push the rest of the tooltip off the screen.
+        local unknown = RR.UnknownRoleNames and RR.UnknownRoleNames() or {}
+        if #unknown > 0 then
+            GameTooltip:AddLine(table.concat(unknown, ", "), 0.85, 0.75, 0.45, true)
+        end
+
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine(string.format("%d in group, cap %d", size, cap), 0.6, 0.6, 0.6)
         GameTooltip:AddLine("Roles come from what each player whispered when applying", 0.5, 0.5, 0.5, true)

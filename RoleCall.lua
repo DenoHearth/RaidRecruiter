@@ -67,27 +67,12 @@ local function Capture(sender, msg)
     if RR.RefreshList then RR.RefreshList() end
 end
 
--- Who is still silent. Anyone whose role is already known from an earlier
--- source counts as covered -- the point of the check is the gaps, and nagging
--- the two people you flagged as main tanks is wasted raid chat.
+-- Who is still silent. This is the whole point of the feature -- the gaps, not
+-- the answers -- so it comes straight from the readout's own walk (Core.lua)
+-- rather than a second opinion: anyone already covered by a main tank flag or a
+-- read build is not silent, they are known, and nagging them is wasted chat.
 local function StillUnknown()
-    local missing = {}
-    local names = { UnitName("player") }
-    for name in pairs(RR.GroupUnits and RR.GroupUnits() or {}) do
-        names[#names + 1] = name
-    end
-
-    for _, name in ipairs(names) do
-        if not answered[name] and not RR.knownRoles[name] then
-            local role = RR.InspectedRole and RR.InspectedRole(name)
-            if not role then
-                missing[#missing + 1] = name
-            end
-        end
-    end
-
-    table.sort(missing)
-    return missing
+    return RR.UnknownRoleNames()
 end
 
 function RR.RoleCallActive()

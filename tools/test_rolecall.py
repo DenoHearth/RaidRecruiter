@@ -108,13 +108,16 @@ def boot(mutate=None):
         announced = {}
         RR.Announce = function(msg) announced[#announced + 1] = msg end
 
-        raid = { "Deniz", "Bjorn", "Sigrid", "Halvar" }
+        -- Astrid never says a word, and sorts before the player: two silent
+        -- names is what proves the list comes out in name order, not roster order.
+        raid = { "Deniz", "Bjorn", "Sigrid", "Halvar", "Astrid" }
     """)
     return lua
 
 
 def counts(lua):
-    return dict(lua.eval("RR.GroupRoles()"))
+    # GroupRoles returns the counts and the unknown names; lupa hands both back.
+    return dict(lua.eval("(RR.GroupRoles())"))
 
 
 def run(mutate=None):
@@ -156,6 +159,12 @@ def run(mutate=None):
     lua.eval('FireEvent("CHAT_MSG_RAID", "dps", "Halvar-Area52")')
     check("realm stripped", lua.eval('RR.knownRoles["Halvar"]') == "DPS")
 
+    # The names behind the question mark -- what the header tooltip shows -- and
+    # they have to agree with the number beside them.
+    unknown = list(lua.eval("RR.UnknownRoleNames()").values())
+    check("unknown named", unknown == ["Astrid", "Deniz"])
+    check("names match count", len(unknown) == counts(lua)["UNKNOWN"])
+
     # It closes itself when the window runs out, and says who never answered.
     before = len(g.printed)
     Tick = g.Tick
@@ -194,6 +203,10 @@ BREAKAGES = {
                                   "Capture(sender, msg)\n            watcher.UnregisterAllEvents = function() end"),
     "never expires": ("RoleCall.lua",
                       "if GetTime() >= endsAt then", "if false then"),
+    "unknown names not collected": ("Core.lua",
+                                    "if name then unknown[#unknown + 1] = name end", ""),
+    "unknown list unsorted": ("Core.lua",
+                              "table.sort(unknown)", ""),
     "answers dropped on stop": ("RoleCall.lua",
                                 "local wasRunning = running", "RR.knownRoles = {}\n    local wasRunning = running"),
 }

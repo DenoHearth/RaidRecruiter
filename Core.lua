@@ -209,8 +209,12 @@ local function DeclaredRole(unit, name)
     return nil
 end
 
+-- Counts, and the names behind the question mark. Both come out of the same
+-- walk on purpose: a list of unknowns that disagrees with the number next to it
+-- is worse than no list, and that is exactly what two separate loops drift into.
 function RR.GroupRoles()
     local counts = { TANK = 0, HEALER = 0, DPS = 0, UNKNOWN = 0 }
+    local unknown = {}
 
     local function Add(unit, name)
         local role = DeclaredRole(unit, name)
@@ -218,6 +222,7 @@ function RR.GroupRoles()
             counts[role] = counts[role] + 1
         else
             counts.UNKNOWN = counts.UNKNOWN + 1
+            if name then unknown[#unknown + 1] = name end
         end
     end
 
@@ -227,7 +232,7 @@ function RR.GroupRoles()
             local name = GetRaidRosterInfo(i)
             Add("raid" .. i, name)
         end
-        return counts
+        return counts, unknown
     end
 
     local party = GetNumPartyMembers and GetNumPartyMembers() or 0
@@ -236,11 +241,19 @@ function RR.GroupRoles()
         for i = 1, party do
             Add("party" .. i, UnitName("party" .. i))
         end
-        return counts
+        return counts, unknown
     end
 
     Add("player", UnitName("player"))
-    return counts
+    return counts, unknown
+end
+
+-- Everyone whose role nothing knows yet, sorted, ready to be read out or
+-- nagged. Same walk as the readout, so the names always match the number.
+function RR.UnknownRoleNames()
+    local _, unknown = RR.GroupRoles()
+    table.sort(unknown)
+    return unknown
 end
 
 -- Who is what, and why. Printed rather than asserted: a role worked out from
