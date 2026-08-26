@@ -37,8 +37,8 @@ local queued = {}       -- name -> true, so one name is never queued twice
 local pending = nil     -- { name, unit, guid, at }
 local ticker
 
-local REQUEST_GAP = 1.5     -- seconds between two requests
-local REQUEST_TIMEOUT = 5   -- no gear by then: treat as failed and move on
+local REQUEST_GAP = 0.7     -- seconds between two requests
+local REQUEST_TIMEOUT = 3   -- no gear by then: treat as failed and move on
 local RESCAN_AFTER = 900    -- re-read someone after 15 minutes
 local RETRY_AFTER = 30      -- someone out of range: try again this often
 
@@ -82,6 +82,14 @@ local scanTip, scanTipName
 
 -- One slot, out of the tooltip the client builds for that unit -- the only place
 -- the rescaled item level appears.
+--
+-- The "Item Level" line is only in the tooltip when the client's own
+-- showItemLevel setting is on, and it is off by default. That is not something
+-- to switch on behind his back, so a slot with no line falls back to the item's
+-- base level from GetItemInfo -- what DragonUI does in exactly the same spot
+-- (UpdateCharacterSlot, "showItemLevel off"). The base level is the pre-rescale
+-- number, so the average can be a little out; a number that is close beats a
+-- dash, and the readout says which slots were read the good way.
 local function SlotItemLevel(unit, slot)
     if not scanTip then
         scanTip = CreateFrame("GameTooltip", "RaidRecruiterIlvlScanTip", nil, "GameTooltipTemplate")
@@ -92,46 +100,53 @@ local function SlotItemLevel(unit, slot)
     scanTip:ClearLines()
     scanTip:SetInventoryItem(unit, slot)
 
-    local level
     for i = 2, (scanTip:NumLines() or 0) do
         local line = _G[scanTipName .. "TextLeft" .. i]
         local text = line and line:GetText()
         if text and string.find(text, ITEM_LEVEL_PREFIX, 1, true) then
-            level = tonumber(string.match(text, "(%d+)"))
-            if level then break end
-        end
-    end
-
-    scanTip:Hide()
-    return level
-end
-
--- The number for one unit. Nothing at all comes back while the answer would be a
--- guess: a filled slot the tooltip cannot price yet means the data is still
--- arriving, and half a set of gear averages to a number that is simply false.
-function RR.ReadItemLevel(unit)
-    local sum, count, missing = 0, 0, 0
-
-    for _, slot in ipairs(SLOTS) do
-        local ok, texture = pcall(GetInventoryItemTexture, unit, slot)
-        if ok and texture then
-            local level = SlotItemLevel(unit, slot)
-            if level and level > 0 then
-                sum = sum + level
-                count = count + 1
-            else
-                missing = missing + 1
+            local level = tonumber(string.match(text, "(%d+)"))
+            if level then
+                scanTip:Hide()
+                return level, true
             end
         end
     end
 
-    if count == 0 or missing > 0 then return nil end
+    scanTip:Hide()
+
+    local ok, link = pcall(GetInventoryItemLink, unit, slot)
+    if ok and link then
+        local gotInfo, _, _, _, level = pcall(GetItemInfo, link)
+        if gotInfo and level and level > 0 then
+            return level, false
+        end
+    end
+
+    return nil
+end
+
+-- The number for one unit, and how solid it is. Nothing comes back until enough
+-- of the set has been read: half a kit averages to something simply false.
+function RR.ReadItemLevel(unit)
+    local sum, count, exact = 0, 0, 0
+
+    for _, slot in ipairs(SLOTS) do
+        local ok, texture = pcall(GetInventoryItemTexture, unit, slot)
+        if ok and texture then
+            local level, fromTooltip = SlotItemLevel(unit, slot)
+            if level and level > 0 then
+                sum = sum + level
+                count = count + 1
+                if fromTooltip then exact = exact + 1 end
+            end
+        end
+    end
 
     -- Somebody genuinely wearing seven items is not what this is looking at; it
     -- is gear that has not finished arriving.
     if count < 8 then return nil end
 
-    return sum / count
+    return sum / count, count, exact
 end
 
 -- What the rest of the addon asks -----------------------------------------------
@@ -298,9 +313,19 @@ function RR.Ilvl_Init()
         end
     end)
 
-    ticker = C_Timer.NewTicker(1, function()
-        if pending and (GetTime() - pending.at) > REQUEST_TIMEOUT then
-            Finish(nil)
+    -- Poll rather than waiting only for UNIT_INVENTORY_CHANGED. For anybody the
+    -- client has already seen the gear is there the moment it is asked for, and
+    -- no event follows -- waiting for one meant every such player cost a full
+    -- timeout before the queue moved on. This is what made scanning a raid take
+    -- minutes.
+    ticker = C_Timer.NewTicker(0.2, function()
+        if pending then
+            local value = RR.ReadItemLevel(pending.unit)
+            if value then
+                Finish(value)
+            elseif (GetTime() - pending.at) > REQUEST_TIMEOUT then
+                Finish(nil)
+            end
         end
         SendNext()
     end)

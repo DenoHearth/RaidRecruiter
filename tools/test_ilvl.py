@@ -6,6 +6,7 @@
 # Every assertion is checked against a deliberately broken build at the bottom.
 
 import io, os, sys
+from math import fabs as abs
 from lupa.lua51 import LuaRuntime
 
 ADDON = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -59,6 +60,21 @@ function GetInventoryItemTexture(unit, slot)
     if not m or not m.gear then return nil end
     if m.blank and m.blank[slot] then return "texture" end
     return m.gear[slot] and "texture" or nil
+end
+
+-- The link and its base item level, which is what GetItemInfo reports on this
+-- server -- the pre-rescale number the addon falls back to when the tooltip has
+-- no "Item Level" line (the client's showItemLevel setting off).
+function GetInventoryItemLink(unit, slot)
+    local m = member(unit)
+    local level = m and m.gear and m.gear[slot]
+    if not level then return nil end
+    local base = (m.base and m.base[slot]) or level
+    return "link:" .. base
+end
+function GetItemInfo(link)
+    local level = tonumber(string.match(link or "", "^link:(%d+)$"))
+    return "Item", link, 4, level
 end
 
 tooltipLines = {}
@@ -259,27 +275,21 @@ def run(mutate=None):
     ''')
     check("a half-arrived inventory is refused", read(lua2, "Torvi") is None)
 
-    # A full set of gear where two tooltips have not filled in yet is not an item
-    # level either -- averaging the fifteen that did answer reports a number that
-    # is simply wrong, and the data is seconds away.
+    # The "Item Level" line is only in the tooltip when the client's showItemLevel
+    # setting is on. Slots without it fall back to the item's base level rather
+    # than the whole player coming back as a dash.
     lua2b = boot(mutate)
     lua2b.execute('''
         raid = { { name = "Deniz", guid = "g0", gear = FullGear(70) },
                  { name = "Slow", guid = "g7", inRange = true, gear = FullGear(80),
-                   blank = { [1] = true, [5] = true } } }
+                   blank = { [1] = true, [5] = true },
+                   base = { [1] = 60, [5] = 60 } } }
         RR.QueueIlvlGroup(true)
         Tick(1)
         FireEvent("UNIT_INVENTORY_CHANGED", "raid2")
     ''')
-    check("tooltips still filling in are not an answer", read(lua2b, "Slow") is None)
-
-    # Once they do fill in, the number is read.
-    lua2b.execute('''
-        raid[2].blank = nil
-        Tick(30)
-        FireEvent("UNIT_INVENTORY_CHANGED", "raid2")
-    ''')
-    check("read once the tooltips arrive", read(lua2b, "Slow") == 80)
+    check("falls back to the base level for a slot with no tooltip line",
+          abs(read(lua2b, "Slow") - ((15 * 80 + 2 * 60) / 17)) < 0.001)
 
     # The player's own inspect window is never stolen.
     lua3 = boot(mutate)
@@ -332,8 +342,9 @@ def run(mutate=None):
 BREAKAGES = {
     "range check skipped": ("Ilvl.lua", "if Readable(unit) then", "if true then"),
     "partial gear accepted": ("Ilvl.lua", "if count < 8 then return nil end", ""),
-    "half-filled tooltips accepted": ("Ilvl.lua", "if count == 0 or missing > 0 then return nil end",
-                                      "if count == 0 then return nil end"),
+    "no fallback for a missing tooltip line": ("Ilvl.lua",
+                                               "local ok, link = pcall(GetInventoryItemLink, unit, slot)",
+                                               "local ok, link = false, nil"),
     "guid check dropped": ("Ilvl.lua", "if UnitGUID(pending.unit) ~= pending.guid then",
                            "if false then"),
     "steals the inspect window": ("Ilvl.lua", "if InspectWindowOpen() then return end", ""),
