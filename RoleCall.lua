@@ -64,7 +64,7 @@ local function Capture(sender, msg)
     local role = RR.ParseRole(msg)
     if not role then return end
 
-    RR.knownRoles[name] = role
+    RR.RememberRole(name, role)
     answered[name] = role
 
     -- Someone still sitting in the applicant list gets their row corrected too:

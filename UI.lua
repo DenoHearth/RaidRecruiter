@@ -336,8 +336,10 @@ function RR.RefreshComposition()
 
     compText:SetText(text)
 
-    -- The "Ask the missing" button carries the same number on its face.
+    -- The "Ask the missing" button carries the same number on its face, and the
+    -- Roles page lists the same people.
     if RR.RefreshRoleCallUI then RR.RefreshRoleCallUI() end
+    if RR.RefreshRolesUI then RR.RefreshRolesUI() end
 end
 
 function RR.RefreshList()
@@ -583,11 +585,12 @@ local function BuildWindow()
         end
         RR.db.page = name
         if name == "loot" and RR.RefreshLootUI then RR.RefreshLootUI() end
+        if name == "roles" and RR.RefreshRolesUI then RR.RefreshRolesUI() end
         if name == "recruit" then RR.RefreshList() end
     end
     RR.SelectPage = SelectPage
 
-    local tabDefs = { { "recruit", "Recruiting" }, { "loot", "Loot rolls" } }
+    local tabDefs = { { "recruit", "Recruiting" }, { "loot", "Loot rolls" }, { "roles", "Roles" } }
     for i, def in ipairs(tabDefs) do
         local tab = Button(window, def[2], 90, 20)
         if i == 1 then
@@ -1188,6 +1191,7 @@ end
 function RR.UI_Init()
     BuildWindow()
     if RR.LootUI_Init then RR.LootUI_Init() end
+    if RR.RolesUI_Init then RR.RolesUI_Init() end
     SetupMinimapButton()
     RR.SelectPage(RR.db.page or "recruit")
 end

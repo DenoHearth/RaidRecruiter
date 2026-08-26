@@ -16,6 +16,45 @@ local order = {}        -- names, insertion order (stable tiebreak for sorting)
 -- because by then they are already in the group being counted.
 RR.knownRoles = {}
 
+-- Every role that is known goes through here, and out to the saved variables on
+-- the way. A /reload rebuilds the whole addon from nothing: without this the
+-- readout emptied itself every time, halfway through a raid, and there is no way
+-- to get the answers back except asking twenty-five people again.
+--
+-- Nil clears, which is what the "?" button on the Roles page does.
+function RR.RememberRole(name, role)
+    if not name then return end
+
+    RR.knownRoles[name] = role
+
+    local db = RR.db
+    if not db then return end
+    db.roles = db.roles or {}
+    db.roles[name] = role
+    db.rolesSavedAt = time()
+end
+
+-- Put back what was saved, unless it is old enough to be a different raid. A
+-- reload takes seconds and a relog a minute; anything from yesterday is a
+-- stranger with the same name as far as tonight's group is concerned, and a
+-- stale role nobody declared is exactly the guessing this addon does not do.
+local function RestoreRoles()
+    local db = RR.db
+    if not db or type(db.roles) ~= "table" then return end
+
+    local hours = tonumber(db.rolesKeepHours) or 12
+    local age = time() - (tonumber(db.rolesSavedAt) or 0)
+    if age > hours * 3600 then
+        db.roles = {}
+        db.rolesSavedAt = 0
+        return
+    end
+
+    for name, role in pairs(db.roles) do
+        RR.knownRoles[name] = role
+    end
+end
+
 -- Item level ------------------------------------------------------------------
 --
 -- Decimals are kept. On this server item level really is fractional (FrostSeek
@@ -269,10 +308,21 @@ local function AddWhisper(msg, sender, ...)
     local ilvl = RR.ParseItemLevel(msg)
     if ilvl then record.ilvl = ilvl end
 
+    -- A whisper only ever sets a role for somebody who is not in the group yet:
+    -- that is an application, and the role is the point of it. Once they are in,
+    -- their whispers are conversation -- "can you tank this one", "our healer
+    -- died" -- and reading a role out of those quietly reassigns people who
+    -- never asked to be reassigned. Nothing a group member whispers touches a
+    -- role -- not even filling in a blank one, since "our tank died" is not a
+    -- man saying he is the tank. Switches and gaps are set by hand on the Roles
+    -- page, or asked for in chat where a class check is reading.
     local role = RR.ParseRole(msg)
     if role then
-        record.role = role
-        RR.knownRoles[name] = role
+        local grouped = RR.GroupedNames()
+        if not grouped[name] then
+            record.role = role
+            RR.RememberRole(name, role)
+        end
     end
 
     local class = ClassFromArgs(...)
@@ -432,6 +482,8 @@ end
 -- Events ----------------------------------------------------------------------
 
 function RR.Applicants_Init()
+    RestoreRoles()
+
     local watcher = CreateFrame("Frame")
 
     -- Registering an event this client does not know throws, and one bad name

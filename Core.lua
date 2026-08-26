@@ -70,6 +70,9 @@ RR.defaults = {
     lootMinQuality = 3,     -- blue and up; grey/green trash never needs a roll
     stash = {},             -- boss drops now in your own bags, still to hand out
     stashHours = 12,        -- how long a remembered drop stays in the list
+    roles = {},             -- [name] = "Tank" / "Healer" / "DPS" / "Tank/DPS"
+    rolesSavedAt = 0,       -- when that table was last written
+    rolesKeepHours = 12,    -- older than this and it is last week's raid, not this one
     -- Class check: the fallback when nothing else knows the raid's makeup --
     -- ask everyone in a raid warning and read the answers out of raid chat.
     roleCallMessage = "Class check -- write your role in raid chat: tank / healer / dps",

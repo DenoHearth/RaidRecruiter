@@ -12,7 +12,7 @@ import io, os, sys
 from lupa.lua51 import LuaRuntime
 
 ADDON = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FILES = ["Core.lua", "Applicants.lua", "RoleCall.lua"]
+FILES = ["Core.lua", "Applicants.lua", "RoleCall.lua", "RolesUI.lua"]
 
 PRELUDE = r"""
 GetTime_value = 1000
@@ -83,7 +83,7 @@ end
 """
 
 
-def boot(mutate=None):
+def boot(mutate=None, saved=None):
     lua = LuaRuntime(unpack_returned_tuples=True)
     lua.execute(PRELUDE)
     lua.execute("RR = {}")
@@ -96,8 +96,8 @@ def boot(mutate=None):
         if loader is None:
             raise AssertionError("syntax error in " + name)
         loader("RaidRecruiter", RR)
+    lua.execute("RaidRecruiterDB = " + (saved or "{}"))
     lua.execute("""
-        RaidRecruiterDB = {}
         RR.db = RaidRecruiterDB
         for key, value in pairs(RR.defaults) do
             if RR.db[key] == nil then RR.db[key] = value end
@@ -236,12 +236,60 @@ def run(mutate=None):
     lua.eval("RR.ChaseUnknown()")
     check("no chase with nobody missing", lua.eval("RR.RoleCallActive()") is False)
 
+    # A whisper from somebody already in the group never touches their role --
+    # once they are in, a whisper is conversation, not an application.
+    lua.execute('RR.knownRoles["Halvar"] = "DPS"')
+    lua.eval('FireEvent("CHAT_MSG_WHISPER", "im tank now", "Halvar")')
+    check("group member's whisper ignored", lua.eval('RR.knownRoles["Halvar"]') == "DPS")
+
+    # Not even to fill in a blank one: "our tank died" is not a man saying he
+    # tanks.
+    lua.execute('RR.knownRoles["Astrid"] = nil')
+    lua.eval('FireEvent("CHAT_MSG_WHISPER", "our tank died", "Astrid")')
+    check("group member's whisper cannot fill a blank", lua.eval('RR.knownRoles["Astrid"]') is None)
+
+    # Somebody outside the group whispering is an applicant, and that is exactly
+    # where a whispered role does belong.
+    lua.eval('FireEvent("CHAT_MSG_WHISPER", "82 ilvl resto", "Outsider")')
+    check("applicant whisper still read", lua.eval('RR.knownRoles["Outsider"]') == "Healer")
+
+    # Setting one by hand is the override, and clearing puts them back to unknown.
+    lua.eval('RR.SetRoleByHand("Halvar", "Healer")')
+    check("set by hand", lua.eval('RR.knownRoles["Halvar"]') == "Healer")
+    lua.eval('RR.SetRoleByHand("Halvar", nil)')
+    check("cleared by hand", lua.eval('RR.knownRoles["Halvar"]') is None)
+
+    # A /reload rebuilds the addon from nothing: the roles have to come back out
+    # of the saved variables, or the readout empties itself mid-raid.
+    lua.eval('RR.SetRoleByHand("Halvar", "Tank")')
+    lua.eval('RR.SetRoleByHand("Bjorn", "Healer")')
+    saved = lua.eval("(function() local out = {} for k, v in pairs(RR.db.roles) do out[k] = v end return out end)()")
+    check("written to the saved variables", dict(saved).get("Halvar") == "Tank")
+
+    fresh = boot(mutate, saved='{ roles = { Halvar = "Tank", Bjorn = "Healer" }, rolesSavedAt = time_value }')
+    check("survives a reload", fresh.eval('RR.knownRoles["Halvar"]') == "Tank")
+    check("counted after a reload", dict(fresh.eval("(RR.GroupRoles())"))["TANK"] == 1)
+
+    # Last week's raid is not tonight's. Anything older than rolesKeepHours is
+    # dropped rather than shown as a role nobody in this group declared.
+    stale = boot(mutate, saved='{ roles = { Halvar = "Tank" }, rolesSavedAt = 1 }')
+    check("stale roles dropped", stale.eval('RR.knownRoles["Halvar"]') is None)
+    check("stale table cleared", stale.eval("next(RR.db.roles)") is None)
+
     return failures
 
 
 # Broken builds: each mutation must make at least one assertion fail, otherwise
 # the assertion is not testing what it claims to.
 BREAKAGES = {
+    "in-group whisper sets a role": ("Applicants.lua",
+                                     "if not grouped[name] then", "if true then"),
+    "applicant whisper ignored too": ("Applicants.lua",
+                                      "if not grouped[name] then", "if false then"),
+    "roles never saved": ("Applicants.lua",
+                          "db.roles[name] = role", ""),
+    "stale roles kept": ("Applicants.lua",
+                         "if age > hours * 3600 then", "if false then"),
     "no group filter": ("RoleCall.lua",
                         "if not grouped[name] then return end", ""),
     "reads chat with no check running": ("RoleCall.lua",
