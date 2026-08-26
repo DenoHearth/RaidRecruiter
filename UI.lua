@@ -599,7 +599,16 @@ local function BuildWindow()
     -- matters.
     roleCallButton = Button(window, "Class check", 130, 20)
     roleCallButton:SetPoint("LEFT", tabButtons[#tabButtons], "RIGHT", 16, 0)
-    roleCallButton:SetScript("OnClick", function() RR.ToggleRoleCall() end)
+    roleCallButton:SetScript("OnClick", function()
+        -- RoleCall.lua is a newer file than the rest of the addon, and a client
+        -- that only reloaded its UI still has the old .toc: the button exists
+        -- and the module behind it does not. Say so instead of erroring.
+        if not RR.ToggleRoleCall then
+            RR.Print("class check needs a full client restart -- /reload does not pick up a new file.")
+            return
+        end
+        RR.ToggleRoleCall()
+    end)
     roleCallButton:SetScript("OnEnter", function(self)
         self:SetBackdropColor(C.accent[1], C.accent[2], C.accent[3], 1)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
