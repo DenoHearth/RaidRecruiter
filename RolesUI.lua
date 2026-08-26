@@ -37,25 +37,9 @@ local function RoleColor(role)
     return C.text
 end
 
--- Everyone in the group, player first, then the rest in name order. The player
--- is first rather than sorted in because it is the row you set on yourself and
--- hunting for your own name in a raid of 25 is silly.
-local function GroupList()
-    local me = UnitName("player")
-    local names = {}
-    for name in pairs(RR.GroupUnits and RR.GroupUnits() or {}) do
-        names[#names + 1] = name
-    end
-    table.sort(names)
-
-    local list = {}
-    if me then list[1] = me end
-    for _, name in ipairs(names) do list[#list + 1] = name end
-    return list
-end
-
 -- What someone is down as, and where it came from -- the same two sources the
--- readout counts, in the same order.
+-- readout counts, in the same order. Declared above the list because the list
+-- sorts on it.
 local function RoleOf(name)
     local said = RR.knownRoles and RR.knownRoles[name]
     if said then return said, "said so" end
@@ -65,6 +49,43 @@ local function RoleOf(name)
 
     return nil, nil
 end
+
+-- Tanks, then healers, then damage, then anybody who has not said. That is the
+-- order a raid is counted in and the order the gaps show up in -- two tanks and
+-- no healers is visible at the top of the list instead of scattered through it.
+--
+-- "Tank/DPS" sorts as a tank: the scarcer slot is the one worth seeing.
+local ROLE_ORDER = { Tank = 1, Healer = 2, DPS = 3 }
+
+local function RoleRank(role)
+    if not role then return 4 end
+    if string.find(role, "Tank") then return ROLE_ORDER.Tank end
+    if string.find(role, "Healer") then return ROLE_ORDER.Healer end
+    if string.find(role, "DPS") then return ROLE_ORDER.DPS end
+    return 4
+end
+
+-- Everyone in the group, in role order, alphabetical inside each role.
+local function GroupList()
+    local names = {}
+    local me = UnitName("player")
+    if me then names[1] = me end
+    for name in pairs(RR.GroupUnits and RR.GroupUnits() or {}) do
+        names[#names + 1] = name
+    end
+
+    table.sort(names, function(a, b)
+        local rankA, rankB = RoleRank(RoleOf(a)), RoleRank(RoleOf(b))
+        if rankA ~= rankB then return rankA < rankB end
+        return string.lower(a) < string.lower(b)
+    end)
+
+    return names
+end
+
+-- Exposed so the order can be checked offline; the page itself is the only
+-- caller in game.
+RR.RolesListOrder = GroupList
 
 -- Setting a role by hand. It goes into the same table an answer goes into, so
 -- nothing downstream has to know the difference -- the readout, the unknown

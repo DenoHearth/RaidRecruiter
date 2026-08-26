@@ -276,6 +276,23 @@ def run(mutate=None):
     check("stale roles dropped", stale.eval('RR.knownRoles["Halvar"]') is None)
     check("stale table cleared", stale.eval("next(RR.db.roles)") is None)
 
+    # The Roles page lists tanks first, then healers, then damage, then whoever
+    # has not said -- alphabetical inside each group.
+    lua.execute('''
+        RR.knownRoles = {
+            Deniz = "DPS", Bjorn = "Healer", Sigrid = "Tank",
+            Halvar = "DPS", Astrid = nil,
+        }
+    ''')
+    order = list(lua.eval("RR.RolesListOrder()").values())
+    check("tanks, healers, damage, then silence",
+          order == ["Sigrid", "Bjorn", "Deniz", "Halvar", "Astrid"])
+
+    # "Tank/DPS" is a tank for sorting: the scarce slot is the one to see.
+    lua.execute('RR.knownRoles["Halvar"] = "Tank/DPS"')
+    order = list(lua.eval("RR.RolesListOrder()").values())
+    check("a tank-or-damage answer sorts as a tank", order[:2] == ["Halvar", "Sigrid"])
+
     return failures
 
 
@@ -286,6 +303,11 @@ BREAKAGES = {
                                      "if not grouped[name] then", "if true then"),
     "applicant whisper ignored too": ("Applicants.lua",
                                       "if not grouped[name] then", "if false then"),
+    "roles list not sorted by role": ("RolesUI.lua",
+                                      "if rankA ~= rankB then return rankA < rankB end", ""),
+    "tank-or-damage not sorted as a tank": ("RolesUI.lua",
+                                            'if string.find(role, "Tank") then return ROLE_ORDER.Tank end',
+                                            'if role == "Tank" then return ROLE_ORDER.Tank end'),
     "roles never saved": ("Applicants.lua",
                           "db.roles[name] = role", ""),
     "stale roles kept": ("Applicants.lua",
