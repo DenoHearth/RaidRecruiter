@@ -550,7 +550,12 @@ local function BuildWindow()
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine(string.format("%d in group, cap %d", size, cap), 0.6, 0.6, 0.6)
         GameTooltip:AddLine("Roles come from what each player whispered when applying,", 0.5, 0.5, 0.5, true)
-        GameTooltip:AddLine("then main tank flags. Unknown means nobody ever said.", 0.5, 0.5, 0.5, true)
+        GameTooltip:AddLine("then main tank flags, then their build read by inspecting them.", 0.5, 0.5, 0.5, true)
+        if RR.InspectStatus then
+            local read, waiting = RR.InspectStatus()
+            GameTooltip:AddLine(string.format("%d build(s) read, %d waiting for someone to come closer.", read, waiting), 0.5, 0.5, 0.5, true)
+            GameTooltip:AddLine("/rr roles says who is what, and why.", 0.5, 0.5, 0.5, true)
+        end
         GameTooltip:Show()
     end)
     compFrame:SetScript("OnLeave", function() GameTooltip:Hide() end)
