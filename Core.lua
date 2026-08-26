@@ -326,6 +326,7 @@ loader:SetScript("OnEvent", function(self, event, arg1)
         if RR.Broadcast_Init then RR.Broadcast_Init() end
         if RR.Loot_Init then RR.Loot_Init() end
         if RR.LootBag_Init then RR.LootBag_Init() end
+        if RR.Ilvl_Init then RR.Ilvl_Init() end
         if RR.RoleCall_Init then RR.RoleCall_Init() end
     elseif event == "PLAYER_LOGIN" then
         if RR.UI_Init then RR.UI_Init() end

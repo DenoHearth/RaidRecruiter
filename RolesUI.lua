@@ -16,7 +16,7 @@ local C = RR.COLOR
 local ROLE_ROWS = 12
 local ROLE_ROW_H = 24
 
-local page, rows, scroll, summaryText, hint
+local page, rows, scroll, summaryText, hint, scanText
 local offset = 0
 
 -- The four things a row can be set to. "?" is not a role, it is the absence of
@@ -100,12 +100,19 @@ local function BuildRow(parent, index)
 
     row.name = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     row.name:SetPoint("LEFT", 8, 0)
-    row.name:SetWidth(130)
+    row.name:SetWidth(120)
     row.name:SetJustifyH("LEFT")
 
+    -- Read off their gear, not off what they claimed. Two decimals because on
+    -- this server item level really is fractional.
+    row.ilvl = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.ilvl:SetPoint("LEFT", row.name, "RIGHT", 4, 0)
+    row.ilvl:SetWidth(58)
+    row.ilvl:SetJustifyH("LEFT")
+
     row.role = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.role:SetPoint("LEFT", row.name, "RIGHT", 4, 0)
-    row.role:SetWidth(80)
+    row.role:SetPoint("LEFT", row.ilvl, "RIGHT", 4, 0)
+    row.role:SetWidth(78)
     row.role:SetJustifyH("LEFT")
 
     row.source = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -135,6 +142,10 @@ end
 function RR.RefreshRolesUI()
     if not page or not page:IsShown() then return end
 
+    -- Opening the page is the moment the numbers matter, so that is when the
+    -- reading starts. Anybody already read is left alone until they go stale.
+    if RR.QueueIlvlGroup then RR.QueueIlvlGroup() end
+
     local list = GroupList()
     local total = #list
 
@@ -150,6 +161,20 @@ function RR.RefreshRolesUI()
 
             local applicant = RR.GetApplicant and RR.GetApplicant(name)
             row.name:SetTextColor(RR.ClassColor(applicant and applicant.class))
+
+            -- A number they quoted themselves is a claim, so it is shown dim
+            -- and marked, never mixed in with the ones read off gear.
+            local value, source = RR.ItemLevelOf and RR.ItemLevelOf(name)
+            if value and source == "read" then
+                row.ilvl:SetText(RR.FormatItemLevel(value))
+                row.ilvl:SetTextColor(C.text[1], C.text[2], C.text[3])
+            elseif value then
+                row.ilvl:SetText(RR.FormatItemLevel(value) .. "?")
+                row.ilvl:SetTextColor(C.textDim[1], C.textDim[2], C.textDim[3])
+            else
+                row.ilvl:SetText("--")
+                row.ilvl:SetTextColor(C.textDim[1], C.textDim[2], C.textDim[3])
+            end
 
             local role, from = RoleOf(name)
             row.role:SetText(role or "not said")
@@ -174,6 +199,17 @@ function RR.RefreshRolesUI()
         else
             row.playerName = nil
             row:Hide()
+        end
+    end
+
+    if RR.IlvlStatus then
+        local known, waiting, busy = RR.IlvlStatus()
+        if busy then
+            scanText:SetText(string.format("reading %s", busy))
+        elseif waiting > 0 then
+            scanText:SetText(string.format("%d read, %d waiting to come closer", known, waiting))
+        else
+            scanText:SetText(string.format("%d read", known))
         end
     end
 
@@ -209,8 +245,28 @@ function RR.RolesUI_Init()
     hint = Label(panel, "Set a role here when somebody switches. What you set stays put -- "
         .. "a whisper from someone already in the group never changes it.", 10, C.textDim)
     hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
-    hint:SetWidth(700)
+    hint:SetWidth(560)
     hint:SetJustifyH("LEFT")
+
+    -- Gear can only be read off somebody standing near you, so this fills in
+    -- over the course of an evening rather than all at once. The button forces
+    -- a fresh pass over everybody currently in range.
+    local rescan = RR.UI_Button(panel, "Scan gear", 70, 18)
+    rescan:SetPoint("TOPRIGHT", -12, -28)
+    rescan:SetScript("OnClick", function()
+        if not RR.QueueIlvlGroup then
+            RR.Print("this needs a full client restart -- /reload does not pick up a new file.")
+            return
+        end
+        RR.QueueIlvlGroup(true)
+        local _, waiting = RR.IlvlStatus()
+        RR.Print("reading gear for %d player(s) -- anyone out of range is retried as they come closer.", waiting)
+        RR.RefreshRolesUI()
+    end)
+
+    scanText = Label(panel, "", 10, C.textDim)
+    scanText:SetPoint("RIGHT", rescan, "LEFT", -8, 0)
+    scanText:SetJustifyH("RIGHT")
 
     local holder = CreateFrame("Frame", nil, panel)
     holder:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
