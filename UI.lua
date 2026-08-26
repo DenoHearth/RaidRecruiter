@@ -25,7 +25,7 @@ local messageBox, charCount, intervalSlider, intervalBox, startButton, statusTex
 local searchBox, minIlvlBox, hideGroupedCheck, roleButtons, headerButtons
 local capBox, replyBox
 local footerText, compText, compFrame
-local roleCallButton, chaseButton
+local roleCallButton, chaseButton, pullButton
 
 -- Focus handling --------------------------------------------------------------
 --
@@ -684,6 +684,50 @@ local function BuildWindow()
         self:SetBackdropColor(color[1], color[2], color[3], 1)
         GameTooltip:Hide()
     end)
+
+    -- The pull timer. On the strip with the other two because it is the same
+    -- kind of thing: one click that says something to the whole raid.
+    pullButton = Button(window, "Pull", 76, 20)
+    pullButton:SetPoint("LEFT", chaseButton, "RIGHT", 8, 0)
+    pullButton:SetScript("OnClick", function()
+        if not RR.TogglePull then
+            RR.Print("this needs a full client restart -- /reload does not pick up a new file.")
+            return
+        end
+        RR.TogglePull()
+    end)
+    pullButton:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(C.accent[1], C.accent[2], C.accent[3], 1)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+        GameTooltip:AddLine("Pull timer", 1, 1, 1)
+        if RR.PullActive and RR.PullActive() then
+            GameTooltip:AddLine("Counting down. Click to cancel -- the raid is told.", 0.8, 0.8, 0.8, true)
+        else
+            GameTooltip:AddLine(string.format("Counts the raid down from %d seconds to zero",
+                tonumber(RR.db.pullSeconds) or 15), 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("in raid warnings: the start, then 10, then 5 to 1, then Pull!", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("/rr pull 8 for a different count. It announces only --", 0.5, 0.5, 0.5, true)
+            GameTooltip:AddLine("walking in is still yours to do.", 0.5, 0.5, 0.5, true)
+        end
+        GameTooltip:Show()
+    end)
+    pullButton:SetScript("OnLeave", function(self)
+        local color = self.baseColor or C.accentDim
+        self:SetBackdropColor(color[1], color[2], color[3], 1)
+        GameTooltip:Hide()
+    end)
+
+    function RR.RefreshPullUI()
+        if not pullButton then return end
+        if RR.PullActive and RR.PullActive() then
+            pullButton.text:SetText(string.format("Pull %d", math.floor((RR.PullSecondsLeft() or 0) + 0.5)))
+            pullButton:SetColor(C.bad)
+        else
+            pullButton.text:SetText("Pull")
+            pullButton:SetColor(C.accentDim)
+        end
+    end
 
     local PAGE_TOP = HEADER_H + 32
 

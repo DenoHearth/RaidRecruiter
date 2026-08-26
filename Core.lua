@@ -72,7 +72,8 @@ RR.defaults = {
     stashHours = 12,        -- how long a remembered drop stays in the list
     roles = {},             -- [name] = "Tank" / "Healer" / "DPS" / "Tank/DPS"
     rolesSavedAt = 0,       -- when that table was last written
-    rolesKeepHours = 12,    -- older than this and it is last week's raid, not this one
+    rolesKeepHours = 12,
+    pullSeconds = 15,       -- the countdown before a boss    -- older than this and it is last week's raid, not this one
     -- Class check: the fallback when nothing else knows the raid's makeup --
     -- ask everyone in a raid warning and read the answers out of raid chat.
     roleCallMessage = "Class check -- write your role in raid chat: tank / healer / dps",
@@ -327,6 +328,7 @@ loader:SetScript("OnEvent", function(self, event, arg1)
         if RR.Loot_Init then RR.Loot_Init() end
         if RR.LootBag_Init then RR.LootBag_Init() end
         if RR.Ilvl_Init then RR.Ilvl_Init() end
+        if RR.Pull_Init then RR.Pull_Init() end
         if RR.RoleCall_Init then RR.RoleCall_Init() end
     elseif event == "PLAYER_LOGIN" then
         if RR.UI_Init then RR.UI_Init() end
@@ -369,12 +371,14 @@ SlashCmdList["RAIDRECRUITER"] = function(msg)
         RR.Print("loot bag emptied.")
     elseif msg == "check" then
         RR.ToggleRoleCall()
+    elseif msg == "pull" or string.match(msg, "^pull%s+%d+$") then
+        RR.TogglePull(tonumber(string.match(msg, "(%d+)")))
     elseif msg == "ask" then
         RR.ToggleChase()
     elseif msg == "roles" then
         RR.PrintRoles()
     elseif msg == "help" then
-        RR.Print("/rr toggles the window. Also: loot, bag, bag clear, check, ask, roles, start, stop, clear, reset.")
+        RR.Print("/rr toggles the window. Also: pull [seconds], loot, bag, bag clear, check, ask, roles, start, stop, clear, reset.")
     else
         RR.ToggleWindow()
     end
