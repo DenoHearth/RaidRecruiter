@@ -1,26 +1,65 @@
 # Raid Recruiter
 
-Two tools for running a raid. Recruiting: posts your LFM message to the channels you pick on a timer and collects everyone who whispers you into a sortable applicant list with their item level, level and role. Loot rolls: puts a boss drop up for roll in /rw, tracks who rolled what, and hands the item to the winner -- from the corpse by master loot, or by trade when you already looted it into your own bags. Class check: asks the raid in a raid warning to write their role in chat and reads the answers back into the composition readout, with a Roles page for setting anyone's role by hand. Pull timer: counts a raid down from 15 seconds to zero in raid warnings. /rr
+Raid leader's window for WoW: Forever. LFG feed: who is posting LFG, LFM and trade in your channels, with whisper and invite buttons. Recruiting: your LFM message to the channels you pick, and everyone who whispers you in a sortable list with item level and role. Roles, class check, loot rolls with hand-out by master loot or trade, and a pull timer. /rr
 
 [![Latest release](https://img.shields.io/github/v/release/DenoHearth/RaidRecruiter?label=download&style=for-the-badge)](https://github.com/DenoHearth/RaidRecruiter/releases/latest)
 
-A World of Warcraft 3.3.5a addon, written for the [Project Ascension](https://ascension.gg) client (realm *Vol'jin — Conquest of Azeroth*).
+A World of Warcraft: Forever addon (interface 16001).
+
+## What it does
+
+One window for building and running a raid or a dungeon group, written for World of
+Warcraft: Forever and its addon rules. `/rr` opens it.
+
+- **LFG feed:** everyone posting LFG, LFM or trade in the channels you are in, newest
+  first: who, which dungeon or raid, which roles they ask for, the message, and Whisper and
+  Invite buttons. Filter by kind or search. Nothing is sent; it only reads chat.
+- **Recruiting:** write your LFM message, tick the channels, set the interval. Everyone who
+  whispers you lands in a sortable list with item level, level and role taken from what
+  they wrote. Invite, whisper or remove from the row. Someone who joins and leaves comes
+  off the list until they whisper again.
+- **Roles:** who in the group is tank, healer or DPS (orange, green, red), set by hand or
+  asked for with a class check in a raid warning. "Ask the missing" calls out the people
+  who have not said.
+- **Loot rolls:** put a drop up for roll in /rw, see who rolled what, hand it to the winner
+  by master loot or by trade from your bags.
+- **Pull timer:** counts the raid down in raid warnings.
+
+## Posting on Forever
+
+Forever does not let an addon post to public channels on a timer. So the first post goes
+out when you press Start, and each later one waits: when it is due you get a "Post LFM now"
+prompt and a sound. Click it, or press the key you bind under Key Bindings > Raid Recruiter.
 
 ## Install
 
-1. Download the zip from the [latest release](https://github.com/DenoHearth/RaidRecruiter/releases/latest).
-2. Extract the `RaidRecruiter` folder into your client's `Interface\AddOns\` directory.
-3. Restart the client, or type `/reload` if it is already running.
+- **CurseForge:** search for Raid Recruiter in the CurseForge app under WoW: Forever.
+- **By hand:** download the zip from the
+  [latest release](https://github.com/DenoHearth/RaidRecruiter/releases/latest) and extract
+  the `RaidRecruiter` folder into `World of Warcraft\<Forever folder>\Interface\AddOns\`.
+  Restart the game.
 
 ## Commands
 
-- `/raidrecruiter`
-- `/rr`
+- `/rr` opens the window. `/rr stop` ends posting. `/rr pull 10` starts a pull timer.
+
+## Limits
+
+- Roles come only from what players say; nothing is guessed from gear or spec.
+- The LFG feed reads chat channels, not the game's own group listing tool.
+- Built before the game's launch against the beta's interface files and an offline
+  simulator. Loot hand-out, trade and channel posting have not been run in the live game yet.
+
+## Ascension version
+
+Versions up to 2.6 were written for the Project Ascension 3.3.5 client. That code is kept
+on the [`ascension`](https://github.com/DenoHearth/RaidRecruiter/tree/ascension) branch.
+
 
 ## Compatibility
 
-- Client interface version **3.3.5a (30300)**.
-- Built and tested on Project Ascension. It uses that server's custom classes and APIs in places, so it is not guaranteed to work on a stock WotLK client.
+- World of Warcraft: Forever, interface version **16001**.
+- Forever only. It uses that client's API and will not load on retail or the Classic clients.
 
 ## Changelog
 
@@ -28,4 +67,4 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).  Current version: 2.6.
+MIT — see [LICENSE](LICENSE).  Current version: 3.0.0.
