@@ -59,7 +59,7 @@ end
 
 function RR.IsMasterLooter()
     if type(GetLootMethod) ~= "function" then return false end
-    local method, partyIndex, raidIndex = GetLootMethod()
+    local method, partyIndex, raidIndex = RR.GetLootMethod()
     if method ~= "master" then return false end
     -- 0 (party) / nil+raid index means "you". Blizzard reports the player as
     -- partyIndex 0, and as a raid index only for other people.
@@ -161,16 +161,16 @@ end
 -- chat when the player has no warning rights (RAID_WARNING silently sends
 -- nothing for a member who is neither leader nor assistant).
 local function AnnounceChannel()
-    local inRaid = GetNumRaidMembers and GetNumRaidMembers() > 0
+    local inRaid = RR.GetNumRaidMembers() > 0
     if inRaid then
-        local leader = IsRaidLeader and IsRaidLeader()
-        local officer = IsRaidOfficer and IsRaidOfficer()
+        local leader = IsRaidLeader and RR.IsRaidLeader()
+        local officer = IsRaidOfficer and RR.IsRaidOfficer()
         if leader or officer then
             return "RAID_WARNING"
         end
         return "RAID"
     end
-    if GetNumPartyMembers and GetNumPartyMembers() > 0 then
+    if RR.GetNumPartyMembers() > 0 then
         return "PARTY"
     end
     return nil
@@ -738,7 +738,7 @@ function RR.Loot_Init()
         if event == "CHAT_MSG_SYSTEM" then
             OnRollMessage(arg1)
         elseif event == "LOOT_OPENED" then
-            local source = UnitName("target") or RR.lootSource
+            local source = RR.UnitName("target") or RR.lootSource
             -- A new corpse starts a new snapshot; reopening the same one keeps
             -- what has already been looted out of it.
             if source ~= RR.corpseSource then

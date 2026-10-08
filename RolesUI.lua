@@ -31,9 +31,9 @@ local CHOICES = {
 
 local function RoleColor(role)
     if not role then return C.textDim end
-    if string.find(role, "Tank") then return C.warn end
-    if string.find(role, "Healer") then return C.good end
-    if string.find(role, "DPS") then return C.bad end
+    if string.find(role, "Tank") then return C.tank end
+    if string.find(role, "Healer") then return C.healer end
+    if string.find(role, "DPS") then return C.dps end
     return C.text
 end
 
@@ -68,7 +68,7 @@ end
 -- Everyone in the group, in role order, alphabetical inside each role.
 local function GroupList()
     local names = {}
-    local me = UnitName("player")
+    local me = RR.UnitName("player")
     if me then names[1] = me end
     for name in pairs(RR.GroupUnits and RR.GroupUnits() or {}) do
         names[#names + 1] = name
@@ -117,7 +117,7 @@ local function BuildRow(parent, index)
     local Button = RR.UI_Button
     local row = CreateFrame("Frame", nil, parent)
     row:SetHeight(ROLE_ROW_H - 2)
-    RR.UI_Backdrop(row, C.row[1], C.row[2], C.row[3], index % 2 == 0 and 0.5 or 0.28)
+    RR.UI_Row(row, index)
 
     row.name = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     row.name:SetPoint("LEFT", 8, 0)
@@ -151,6 +151,7 @@ local function BuildRow(parent, index)
             button:SetPoint("RIGHT", row.buttons[i + 1], "LEFT", -3, 0)
         end
         button.roleKey = choice.key
+        button.textColor = choice.key and RR.RoleColor(choice.key) or nil
         button:SetScript("OnClick", function(self)
             SetRole(self:GetParent().playerName, self.roleKey)
         end)
@@ -213,7 +214,7 @@ function RR.RefreshRolesUI()
                 else
                     on = role == nil
                 end
-                button:SetColor(on and C.accent or C.accentDim)
+                button:SetColor(on and (button.textColor or C.accent) or C.accentDim)
             end
 
             row:Show()
@@ -237,9 +238,9 @@ function RR.RefreshRolesUI()
     local counts = RR.GroupRoles()
     summaryText:SetText(string.format("%d in group   %s%dT|r  %s%dH|r  %s%dD|r  %s%d?|r",
         RR.GroupSize(),
-        RR.Hex(C.warn), counts.TANK,
-        RR.Hex(C.good), counts.HEALER,
-        RR.Hex(C.bad), counts.DPS,
+        RR.Hex(C.tank), counts.TANK,
+        RR.Hex(C.healer), counts.HEALER,
+        RR.Hex(C.dps), counts.DPS,
         RR.Hex(C.textDim), counts.UNKNOWN))
 end
 
@@ -255,9 +256,9 @@ function RR.RolesUI_Init()
     local panel = CreateFrame("Frame", nil, page)
     panel:SetPoint("TOPLEFT", 10, -10)
     panel:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -10, 12)
-    RR.UI_Backdrop(panel, 0.03, 0.035, 0.045, 0.9, 1)
+    RR.UI_Section(panel)
 
-    local title = Label(panel, "WHO IS WHAT", 10, C.accent)
+    local title = RR.UI_Heading(panel, "WHO IS WHAT")
     title:SetPoint("TOPLEFT", 10, -10)
 
     summaryText = Label(panel, "", 11, C.text)
@@ -265,8 +266,8 @@ function RR.RolesUI_Init()
 
     hint = Label(panel, "Set a role here when somebody switches. What you set stays put -- "
         .. "a whisper from someone already in the group never changes it.", 10, C.textDim)
-    hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
-    hint:SetWidth(560)
+    hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+    hint:SetWidth(440)
     hint:SetJustifyH("LEFT")
 
     -- Gear can only be read off somebody standing near you, so this fills in
@@ -293,7 +294,7 @@ function RR.RolesUI_Init()
     holder:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
     holder:SetPoint("RIGHT", panel, "RIGHT", -10, 0)
     holder:SetHeight(ROLE_ROWS * ROLE_ROW_H + 6)
-    RR.UI_Backdrop(holder, 0.02, 0.02, 0.03, 1, 1)
+    RR.UI_Inset(holder)
 
     scroll = CreateFrame("ScrollFrame", "RaidRecruiterRolesScroll", holder, "FauxScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 2, -3)

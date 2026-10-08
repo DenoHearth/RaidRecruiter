@@ -6,7 +6,7 @@
 -- a fact, not an interpretation.
 --
 -- How it is read is not a free choice on this server. Items are rescaled
--- server-side, so GetItemInfo(link) hands back the item's *base* item level --
+-- server-side, so RR.GetItemInfo(link) hands back the item's *base* item level --
 -- the wrong number -- and the item shown on a character can be a skin over a
 -- different item. The only truthful source is the tooltip the client builds for
 -- that unit's slot:
@@ -207,7 +207,7 @@ function RR.QueueIlvlGroup(force)
     end
 
     -- Your own gear needs no inspecting at all.
-    local me = UnitName("player")
+    local me = RR.UnitName("player")
     if me then
         local value = RR.ReadItemLevel("player")
         if value then RR.ilvl[me] = { value = value, at = time() } end
@@ -271,7 +271,7 @@ end
 local function OnInventory(unit)
     if not unit then return end
 
-    local name = UnitName(unit)
+    local name = RR.UnitName(unit)
     if not name then return end
 
     if pending and pending.name == name then
@@ -300,7 +300,7 @@ end
 function RR.Ilvl_Init()
     local watcher = CreateFrame("Frame")
     for _, event in ipairs({ "UNIT_INVENTORY_CHANGED", "INSPECT_READY",
-                             "RAID_ROSTER_UPDATE", "PARTY_MEMBERS_CHANGED" }) do
+                             "RAID_ROSTER_UPDATE", "GROUP_ROSTER_UPDATE" }) do
         pcall(watcher.RegisterEvent, watcher, event)
     end
 

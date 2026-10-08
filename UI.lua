@@ -11,8 +11,8 @@ local ADDON_NAME, RR = ...
 
 local C = RR.COLOR
 
-local WINDOW_W, WINDOW_H = 790, 580
-local HEADER_H = 40
+local WINDOW_W, WINDOW_H = 790, 634
+local HEADER_H = 46
 local LEFT_W = 300
 local ROW_H = 34
 local VISIBLE_ROWS = 10
@@ -53,8 +53,12 @@ end
 WorldFrame:HookScript("OnMouseDown", ClearFocus)
 
 -- Building blocks -------------------------------------------------------------
+--
+-- One look for the whole window: a flat grey window, darker blocks inside it, thin lines
+-- around everything, and blue only where something is selected or under the mouse.
 
 local function Backdrop(frame, r, g, b, a, edge)
+    RR.EnsureBackdrop(frame)
     frame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = edge and "Interface\\Buttons\\WHITE8X8" or nil,
@@ -63,8 +67,27 @@ local function Backdrop(frame, r, g, b, a, edge)
     })
     frame:SetBackdropColor(r, g, b, a)
     if edge then
-        frame:SetBackdropBorderColor(0, 0, 0, 0.9)
+        frame:SetBackdropBorderColor(C.line[1], C.line[2], C.line[3], 1)
     end
+end
+
+-- A block inside the window.
+local function Section(frame)
+    Backdrop(frame, C.section[1], C.section[2], C.section[3], 0.92, 1)
+end
+
+-- The darker well a list or a text box sits in.
+local function Inset(frame)
+    Backdrop(frame, C.inset[1], C.inset[2], C.inset[3], 1, 1)
+end
+
+-- A list row: two shades in turn, lit while the mouse is on it.
+local function Row(row, index)
+    local shade = index % 2 == 0 and C.row or C.rowAlt
+    Backdrop(row, shade[1], shade[2], shade[3], 1)
+    local glow = row:CreateTexture(nil, "HIGHLIGHT")
+    glow:SetAllPoints()
+    glow:SetColorTexture(C.rowHover[1], C.rowHover[2], C.rowHover[3], 0.45)
 end
 
 local function Label(parent, text, size, color)
@@ -72,9 +95,45 @@ local function Label(parent, text, size, color)
     font:SetText(text)
     local file, _, flags = font:GetFont()
     font:SetFont(file, size or 11, flags)
+    font:SetText(text)      -- measured again at the new size, so a larger title is not cut off
     color = color or C.textDim
     font:SetTextColor(color[1], color[2], color[3])
     return font
+end
+
+-- A section title with a short line under it.
+local function Heading(parent, text)
+    local font = Label(parent, text, 10, C.accent)
+    local rule = parent:CreateTexture(nil, "ARTWORK")
+    rule:SetPoint("TOPLEFT", font, "BOTTOMLEFT", 0, -3)
+    rule:SetSize(26, 1)
+    rule:SetColorTexture(C.accent[1], C.accent[2], C.accent[3], 0.55)
+    return font
+end
+
+-- Buttons are dark with a thin outline. What a button is doing shows in the outline and a
+-- tint of the fill: plain at rest, blue when it is the selected one, green / amber / red
+-- when it carries a state.
+local function PaintButton(button)
+    local color = button.baseColor
+    local fr, fg, fb = C.accentDim[1], C.accentDim[2], C.accentDim[3]
+    local edge, text = C.edge, C.text
+    if color == C.accent then
+        fr, fg, fb = C.tabOn[1], C.tabOn[2], C.tabOn[3]
+        edge, text = C.accent, C.accent
+    elseif color and color ~= C.accentDim then
+        fr, fg, fb = color[1] * 0.30, color[2] * 0.30, color[3] * 0.30
+        edge = color
+    end
+    if button.hovered then
+        fr, fg, fb = fr + 0.05, fg + 0.06, fb + 0.08
+        if edge == C.edge then edge = C.hover end
+        text = C.text
+    end
+    button:SetBackdropColor(fr, fg, fb, 1)
+    button:SetBackdropBorderColor(edge[1], edge[2], edge[3], 1)
+    text = button.textColor or text     -- a role button keeps its role's colour
+    button.text:SetTextColor(text[1], text[2], text[3])
 end
 
 local function Button(parent, text, width, height)
@@ -86,24 +145,72 @@ local function Button(parent, text, width, height)
     local font = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     font:SetPoint("CENTER")
     font:SetText(text)
-    font:SetTextColor(C.text[1], C.text[2], C.text[3])
     button.text = font
-
-    button:SetScript("OnMouseDown", ClearFocus)
-    button:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(C.accent[1], C.accent[2], C.accent[3], 1)
-    end)
-    button:SetScript("OnLeave", function(self)
-        local color = self.baseColor or C.accentDim
-        self:SetBackdropColor(color[1], color[2], color[3], 1)
-    end)
 
     function button:SetColor(color)
         self.baseColor = color
-        self:SetBackdropColor(color[1], color[2], color[3], 1)
+        PaintButton(self)
     end
 
+    -- For buttons that bring their own OnEnter / OnLeave (a tooltip): call this from them.
+    function button:SetHover(on)
+        self.hovered = on and true or false
+        PaintButton(self)
+    end
+
+    button:SetScript("OnMouseDown", ClearFocus)
+    button:SetScript("OnEnter", function(self) self:SetHover(true) end)
+    button:SetScript("OnLeave", function(self) self:SetHover(false) end)
+    PaintButton(button)
+
     return button
+end
+
+-- A page tab: grey at rest, dark blue with a bright line under it when its page is open.
+local function Tab(parent, text, width)
+    local tab = CreateFrame("Button", nil, parent)
+    tab:SetSize(width, 26)
+    Backdrop(tab, C.accentDim[1], C.accentDim[2], C.accentDim[3], 1)
+
+    tab.text = tab:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    tab.text:SetPoint("CENTER")
+    tab.text:SetText(text)
+
+    local bar = tab:CreateTexture(nil, "OVERLAY")
+    bar:SetPoint("BOTTOMLEFT")
+    bar:SetPoint("BOTTOMRIGHT")
+    bar:SetHeight(2)
+    bar:SetColorTexture(C.accent[1], C.accent[2], C.accent[3], 1)
+
+    local function Paint(self)
+        local fill = self.active and C.tabOn or C.accentDim
+        local text = (self.active and C.accent) or (self.hovered and C.text) or C.textDim
+        self:SetBackdropColor(fill[1], fill[2], fill[3], 1)
+        self.text:SetTextColor(text[1], text[2], text[3])
+        bar:SetShown(self.active and true or false)
+    end
+
+    function tab:SetActive(on)
+        self.active = on and true or false
+        Paint(self)
+    end
+
+    tab:SetScript("OnMouseDown", ClearFocus)
+    tab:SetScript("OnEnter", function(self) self.hovered = true Paint(self) end)
+    tab:SetScript("OnLeave", function(self) self.hovered = false Paint(self) end)
+    Paint(tab)
+    return tab
+end
+
+-- Edit boxes get a blue outline while they hold the keyboard. The window's slow tick does
+-- it, because the boxes' own focus scripts belong to whoever built the box.
+local focusOutlines = {}
+
+local function PaintFocus()
+    for box, outlined in pairs(focusOutlines) do
+        local edge = box:HasFocus() and C.hover or C.line
+        outlined:SetBackdropBorderColor(edge[1], edge[2], edge[3], 1)
+    end
 end
 
 local function EditBox(parent, width, height, numeric)
@@ -113,17 +220,43 @@ local function EditBox(parent, width, height, numeric)
     box:SetAutoFocus(false)
     box:SetFontObject("GameFontHighlightSmall")
     box:SetTextInsets(6, 6, 2, 2)
-    Backdrop(box, 0.02, 0.02, 0.03, 1, 1)
+    Inset(box)
     if numeric then box:SetNumeric(true) end
     box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     RegisterEditBox(box)
+    focusOutlines[box] = box
     return box
 end
 
+-- A flat tick box: a small outlined square, filled blue when ticked.
 local function CheckBox(parent, text)
-    local check = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    local check = CreateFrame("CheckButton", nil, parent)
     check:SetWidth(20)
     check:SetHeight(20)
+
+    local edge = check:CreateTexture(nil, "BACKGROUND")
+    edge:SetPoint("CENTER")
+    edge:SetSize(14, 14)
+    edge:SetColorTexture(C.border[1], C.border[2], C.border[3], 1)
+    local well = check:CreateTexture(nil, "BORDER")
+    well:SetPoint("CENTER")
+    well:SetSize(12, 12)
+    well:SetColorTexture(C.inset[1], C.inset[2], C.inset[3], 1)
+    local tick = check:CreateTexture(nil, "ARTWORK")
+    tick:SetPoint("CENTER")
+    tick:SetSize(8, 8)
+    tick:SetColorTexture(C.accent[1], C.accent[2], C.accent[3], 1)
+    tick:Hide()
+
+    local setChecked = check.SetChecked
+    function check:SetChecked(on)
+        setChecked(self, on and true or false)
+        tick:SetShown(on and true or false)
+    end
+    check:SetScript("PostClick", function(self) tick:SetShown(self:GetChecked() and true or false) end)
+    check:SetScript("OnEnter", function() edge:SetColorTexture(C.hover[1], C.hover[2], C.hover[3], 1) end)
+    check:SetScript("OnLeave", function() edge:SetColorTexture(C.border[1], C.border[2], C.border[3], 1) end)
+
     local font = check:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     font:SetPoint("LEFT", check, "RIGHT", 2, 0)
     font:SetText(text or "")
@@ -132,9 +265,41 @@ local function CheckBox(parent, text)
     return check
 end
 
--- Shared with LootUI.lua so both pages are built from the same widgets.
+-- A flat slider: a thin track, a blue handle, the two ends written under it.
+local function Slider(parent, width, low, high, step)
+    local slider = CreateFrame("Slider", nil, parent)
+    slider:SetOrientation("HORIZONTAL")
+    slider:SetSize(width, 14)
+    slider:SetMinMaxValues(low, high)
+    slider:SetValueStep(step)
+    slider:SetObeyStepOnDrag(true)
+    slider:EnableMouse(true)
+
+    local track = slider:CreateTexture(nil, "BACKGROUND")
+    track:SetPoint("LEFT")
+    track:SetPoint("RIGHT")
+    track:SetHeight(4)
+    track:SetColorTexture(C.line[1], C.line[2], C.line[3], 1)
+
+    local thumb = slider:CreateTexture(nil, "OVERLAY")
+    thumb:SetSize(10, 14)
+    thumb:SetColorTexture(C.accent[1], C.accent[2], C.accent[3], 1)
+    slider:SetThumbTexture(thumb)
+
+    local lowText = Label(slider, low .. "s", 9, C.textDim)
+    lowText:SetPoint("TOPLEFT", slider, "BOTTOMLEFT", 0, -2)
+    local highText = Label(slider, high .. "s", 9, C.textDim)
+    highText:SetPoint("TOPRIGHT", slider, "BOTTOMRIGHT", 0, -2)
+    return slider
+end
+
+-- Shared with the other pages so the whole window is built from the same widgets.
 RR.UI_Backdrop = Backdrop
+RR.UI_Section = Section
+RR.UI_Inset = Inset
+RR.UI_Row = Row
 RR.UI_Label = Label
+RR.UI_Heading = Heading
 RR.UI_Button = Button
 RR.UI_EditBox = EditBox
 RR.UI_CheckBox = CheckBox
@@ -144,7 +309,7 @@ RR.UI_CheckBox = CheckBox
 local function BuildRow(parent, index)
     local row = CreateFrame("Button", nil, parent)
     row:SetHeight(ROW_H - 2)
-    Backdrop(row, C.row[1], C.row[2], C.row[3], index % 2 == 0 and 0.55 or 0.3)
+    Row(row, index)
 
     row.name = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     row.name:SetPoint("TOPLEFT", 6, -4)
@@ -172,20 +337,20 @@ local function BuildRow(parent, index)
     row.when:SetJustifyH("LEFT")
 
     row.flag = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    -- Bottom right, under the buttons: the top line is already full and the
-    -- message never runs that wide.
-    row.flag:SetPoint("BOTTOMRIGHT", -6, 4)
-    row.flag:SetWidth(120)
+    row.flag:SetWidth(100)
     row.flag:SetJustifyH("RIGHT")
 
     row.message = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     row.message:SetPoint("BOTTOMLEFT", 6, 4)
-    row.message:SetWidth(300)
+    row.message:SetWidth(290)
     row.message:SetJustifyH("LEFT")
+    row.message:SetWordWrap(false)
     row.message:SetTextColor(C.textDim[1], C.textDim[2], C.textDim[3])
 
     row.invite = Button(row, "Invite", 46, 18)
     row.invite:SetPoint("RIGHT", -60, 0)
+    -- On the bottom line, ending where the buttons start; the message gives way to it.
+    row.flag:SetPoint("BOTTOMRIGHT", row.invite, "BOTTOMLEFT", -6, -3)
     row.invite:SetScript("OnClick", function(self)
         if self:GetParent().applicantName then
             RR.Invite(self:GetParent().applicantName)
@@ -268,12 +433,15 @@ local function FillRow(row, record)
     end
 
     row.role:SetText(record.role or "?")
+    local roleColor = RR.RoleColor(record.role)
+    row.role:SetTextColor(roleColor[1], roleColor[2], roleColor[3])
     row.when:SetText(RR.AgoText(record.lastSeen))
 
     local message = record.message or ""
     if string.len(message) > 62 then
         message = string.sub(message, 1, 60) .. "..."
     end
+    row.message:SetWidth(record.leftAt and 190 or 290)
     row.message:SetText(message)
 
     -- Left the group: say so and say how long ago, because a name that dropped
@@ -325,9 +493,9 @@ function RR.RefreshComposition()
     local sizeColor = size >= cap and C.good or C.text
 
     local text = RR.Hex(sizeColor) .. size .. "/" .. cap .. "|r   "
-        .. RR.Hex(C.warn) .. counts.TANK .. "T|r  "
-        .. RR.Hex(C.good) .. counts.HEALER .. "H|r  "
-        .. RR.Hex(C.bad) .. counts.DPS .. "D|r"
+        .. RR.Hex(C.tank) .. counts.TANK .. "T|r  "
+        .. RR.Hex(C.healer) .. counts.HEALER .. "H|r  "
+        .. RR.Hex(C.dps) .. counts.DPS .. "D|r"
 
     -- The question mark only appears when there is something to question.
     if counts.UNKNOWN > 0 then
@@ -419,7 +587,10 @@ RR.RefreshChannels = RefreshChannels
 function RR.RefreshBroadcastUI()
     if not window or not window:IsShown() then return end
 
-    if RR.IsBroadcasting() then
+    if RR.IsBroadcasting() and RR.IsPostDue() then
+        startButton.text:SetText("Post now")
+        startButton:SetColor(C.good)
+    elseif RR.IsBroadcasting() then
         startButton.text:SetText("Stop posting")
         startButton:SetColor(C.bad)
     else
@@ -513,32 +684,33 @@ local function BuildWindow()
         SavePosition()
     end)
     Backdrop(window, C.panel[1], C.panel[2], C.panel[3], 0.96, 1)
+    window:SetBackdropBorderColor(C.border[1], C.border[2], C.border[3], 1)
     window:Hide()
 
     tinsert(UISpecialFrames, "RaidRecruiterWindow")  -- Escape closes it
 
-    -- Header
+    -- Header: the name in the middle, the version under it, nothing behind them.
     local header = CreateFrame("Frame", nil, window)
     header:SetPoint("TOPLEFT", 1, -1)
     header:SetPoint("TOPRIGHT", -1, -1)
     header:SetHeight(HEADER_H)
-    Backdrop(header, C.accentDim[1] * 0.6, C.accentDim[2] * 0.6, C.accentDim[3] * 0.7, 1)
 
     local title = Label(header, "Raid Recruiter", 15, C.text)
-    title:SetPoint("LEFT", 12, 0)
+    title:SetPoint("TOP", 0, -9)
 
-    local subtitle = Label(header, "post, collect, invite", 10, C.textDim)
-    subtitle:SetPoint("LEFT", title, "RIGHT", 8, -1)
+    local version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or ""
+    local subtitle = Label(header, "v" .. version .. "  Forever", 9, C.textDim)
+    subtitle:SetPoint("TOP", title, "BOTTOM", 0, -2)
 
-    local close = Button(header, "X", 22, 20)
-    close:SetPoint("RIGHT", -8, 0)
+    local close = CreateFrame("Button", nil, header, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", 0, 0)
     close:SetScript("OnClick", function() window:Hide() end)
 
     -- Composition lives in the title bar, not the footer: it is the one number
     -- you check before every invite, and up here it stays visible on both tabs.
     compText = Label(header, "", 13, C.text)
-    compText:SetPoint("RIGHT", close, "LEFT", -14, 0)
-    compText:SetJustifyH("RIGHT")
+    compText:SetPoint("LEFT", 14, 0)
+    compText:SetJustifyH("LEFT")
 
     compFrame = CreateFrame("Frame", nil, header)
     compFrame:SetPoint("TOPLEFT", compText, "TOPLEFT", 0, 0)
@@ -549,9 +721,9 @@ local function BuildWindow()
         local size, cap = RR.GroupSize(), tonumber(RR.db.maxPlayers) or 25
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
         GameTooltip:AddLine("Group composition", 1, 1, 1)
-        GameTooltip:AddDoubleLine("Tanks", counts.TANK, 0.8, 0.8, 0.8, 0.85, 0.6, 0.3)
-        GameTooltip:AddDoubleLine("Healers", counts.HEALER, 0.8, 0.8, 0.8, 0.35, 0.8, 0.4)
-        GameTooltip:AddDoubleLine("DPS", counts.DPS, 0.8, 0.8, 0.8, 0.85, 0.3, 0.3)
+        GameTooltip:AddDoubleLine("Tanks", counts.TANK, 0.8, 0.8, 0.8, C.tank[1], C.tank[2], C.tank[3])
+        GameTooltip:AddDoubleLine("Healers", counts.HEALER, 0.8, 0.8, 0.8, C.healer[1], C.healer[2], C.healer[3])
+        GameTooltip:AddDoubleLine("DPS", counts.DPS, 0.8, 0.8, 0.8, C.dps[1], C.dps[2], C.dps[3])
         GameTooltip:AddDoubleLine("Unknown", counts.UNKNOWN, 0.8, 0.8, 0.8, 0.62, 0.63, 0.68)
 
         -- The names behind the question mark, because the number on its own is
@@ -581,22 +753,24 @@ local function BuildWindow()
             if pageName == name then frame:Show() else frame:Hide() end
         end
         for _, tab in ipairs(tabButtons) do
-            tab:SetColor(tab.page == name and C.accent or C.accentDim)
+            tab:SetActive(tab.page == name)
         end
         RR.db.page = name
         if name == "loot" and RR.RefreshLootUI then RR.RefreshLootUI() end
         if name == "roles" and RR.RefreshRolesUI then RR.RefreshRolesUI() end
         if name == "recruit" then RR.RefreshList() end
+        if name == "feed" and RR.RefreshFeedUI then RR.RefreshFeedUI() end
     end
     RR.SelectPage = SelectPage
 
-    local tabDefs = { { "recruit", "Recruiting" }, { "loot", "Loot rolls" }, { "roles", "Roles" } }
+    -- in the order a raid goes: see who is looking, recruit, sort the roles, hand out the loot
+    local tabDefs = { { "feed", "LFG feed" }, { "recruit", "Recruiting" }, { "roles", "Roles" }, { "loot", "Loot rolls" } }
     for i, def in ipairs(tabDefs) do
-        local tab = Button(window, def[2], 90, 20)
+        local tab = Tab(window, def[2], 96)
         if i == 1 then
-            tab:SetPoint("TOPLEFT", 10, -(HEADER_H + 6))
+            tab:SetPoint("TOPLEFT", 10, -(HEADER_H + 2))
         else
-            tab:SetPoint("LEFT", tabButtons[i - 1], "RIGHT", 4, 0)
+            tab:SetPoint("LEFT", tabButtons[i - 1], "RIGHT", 2, 0)
         end
         tab.page = def[1]
         tab:SetScript("OnClick", function(self) SelectPage(self.page) end)
@@ -608,8 +782,14 @@ local function BuildWindow()
     -- the readout above it counts -- and it stays one click away from the loot
     -- page, which is where you are standing when the raid composition suddenly
     -- matters.
-    roleCallButton = Button(window, "Class check", 130, 20)
-    roleCallButton:SetPoint("LEFT", tabButtons[#tabButtons], "RIGHT", 16, 0)
+    local strip = window:CreateTexture(nil, "ARTWORK")
+    strip:SetPoint("TOPLEFT", 10, -(HEADER_H + 28))
+    strip:SetPoint("TOPRIGHT", -10, -(HEADER_H + 28))
+    strip:SetHeight(1)
+    strip:SetColorTexture(C.line[1], C.line[2], C.line[3], 1)
+
+    roleCallButton = Button(window, "Class check", 130, 22)
+    roleCallButton:SetPoint("TOPRIGHT", -222, -(HEADER_H + 3))
     roleCallButton:SetScript("OnClick", function()
         -- RoleCall.lua is a newer file than the rest of the addon, and a client
         -- that only reloaded its UI still has the old .toc: the button exists
@@ -621,7 +801,7 @@ local function BuildWindow()
         RR.ToggleRoleCall()
     end)
     roleCallButton:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(C.accent[1], C.accent[2], C.accent[3], 1)
+        self:SetHover(true)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
         GameTooltip:AddLine("Class check", 1, 1, 1)
         GameTooltip:AddLine("Asks the raid in a raid warning to write their role", 0.8, 0.8, 0.8, true)
@@ -638,8 +818,7 @@ local function BuildWindow()
         GameTooltip:Show()
     end)
     roleCallButton:SetScript("OnLeave", function(self)
-        local color = self.baseColor or C.accentDim
-        self:SetBackdropColor(color[1], color[2], color[3], 1)
+        self:SetHover(false)
         GameTooltip:Hide()
     end)
 
@@ -647,8 +826,8 @@ local function BuildWindow()
     -- them. Its own button rather than a mode of the first one, because the two
     -- are asked at different moments -- the check at the start, this when the
     -- raid is nearly built and three names are holding up the count.
-    chaseButton = Button(window, "Ask the missing", 120, 20)
-    chaseButton:SetPoint("LEFT", roleCallButton, "RIGHT", 8, 0)
+    chaseButton = Button(window, "Ask the missing", 120, 22)
+    chaseButton:SetPoint("LEFT", roleCallButton, "RIGHT", 6, 0)
     chaseButton:SetScript("OnClick", function()
         if not RR.ToggleChase then
             RR.Print("this needs a full client restart -- /reload does not pick up a new file.")
@@ -657,7 +836,7 @@ local function BuildWindow()
         RR.ToggleChase()
     end)
     chaseButton:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(C.accent[1], C.accent[2], C.accent[3], 1)
+        self:SetHover(true)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
         GameTooltip:AddLine("Ask the missing", 1, 1, 1)
         local unknown = RR.UnknownRoleNames and RR.UnknownRoleNames() or {}
@@ -680,15 +859,14 @@ local function BuildWindow()
         GameTooltip:Show()
     end)
     chaseButton:SetScript("OnLeave", function(self)
-        local color = self.baseColor or C.accentDim
-        self:SetBackdropColor(color[1], color[2], color[3], 1)
+        self:SetHover(false)
         GameTooltip:Hide()
     end)
 
     -- The pull timer. On the strip with the other two because it is the same
     -- kind of thing: one click that says something to the whole raid.
-    pullButton = Button(window, "Pull", 76, 20)
-    pullButton:SetPoint("LEFT", chaseButton, "RIGHT", 8, 0)
+    pullButton = Button(window, "Pull", 76, 22)
+    pullButton:SetPoint("LEFT", chaseButton, "RIGHT", 6, 0)
     pullButton:SetScript("OnClick", function()
         if not RR.TogglePull then
             RR.Print("this needs a full client restart -- /reload does not pick up a new file.")
@@ -697,7 +875,7 @@ local function BuildWindow()
         RR.TogglePull()
     end)
     pullButton:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(C.accent[1], C.accent[2], C.accent[3], 1)
+        self:SetHover(true)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
         GameTooltip:AddLine("Pull timer", 1, 1, 1)
         if RR.PullActive and RR.PullActive() then
@@ -715,8 +893,7 @@ local function BuildWindow()
         GameTooltip:Show()
     end)
     pullButton:SetScript("OnLeave", function(self)
-        local color = self.baseColor or C.accentDim
-        self:SetBackdropColor(color[1], color[2], color[3], 1)
+        self:SetHover(false)
         GameTooltip:Hide()
     end)
 
@@ -731,7 +908,7 @@ local function BuildWindow()
         end
     end
 
-    local PAGE_TOP = HEADER_H + 32
+    local PAGE_TOP = HEADER_H + 34
 
     recruitPage = CreateFrame("Frame", nil, window)
     recruitPage:SetPoint("TOPLEFT", 0, -PAGE_TOP)
@@ -752,16 +929,16 @@ local function BuildWindow()
     left:SetPoint("TOPLEFT", 10, -10)
     left:SetWidth(LEFT_W)
     left:SetPoint("BOTTOMLEFT", recruitPage, "BOTTOMLEFT", 10, 12)
-    Backdrop(left, 0.03, 0.035, 0.045, 0.9, 1)
+    Section(left)
 
-    local messageLabel = Label(left, "YOUR MESSAGE", 10, C.accent)
+    local messageLabel = Heading(left, "YOUR MESSAGE")
     messageLabel:SetPoint("TOPLEFT", 10, -10)
 
     local messageHolder = CreateFrame("Frame", nil, left)
     messageHolder:SetPoint("TOPLEFT", 10, -26)
     messageHolder:SetWidth(LEFT_W - 20)
     messageHolder:SetHeight(56)
-    Backdrop(messageHolder, 0.02, 0.02, 0.03, 1, 1)
+    Inset(messageHolder)
 
     messageBox = CreateFrame("EditBox", nil, messageHolder)
     messageBox:SetPoint("TOPLEFT", 6, -5)
@@ -773,6 +950,7 @@ local function BuildWindow()
     messageBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     messageBox:SetScript("OnTextChanged", ApplyMessage)
     RegisterEditBox(messageBox)
+    focusOutlines[messageBox] = messageHolder
 
     -- The holder is wider than the text itself, so clicking the padding around a
     -- short message still puts the cursor in the box.
@@ -782,7 +960,7 @@ local function BuildWindow()
     charCount = Label(left, "0/255", 9, C.textDim)
     charCount:SetPoint("TOPRIGHT", messageHolder, "BOTTOMRIGHT", 0, -3)
 
-    local channelLabel = Label(left, "POST TO", 10, C.accent)
+    local channelLabel = Heading(left, "POST TO")
     channelLabel:SetPoint("TOPLEFT", messageHolder, "BOTTOMLEFT", 0, -16)
 
     local rescan = Button(left, "Rescan", 52, 16)
@@ -793,7 +971,7 @@ local function BuildWindow()
     channelHolder:SetPoint("TOPLEFT", channelLabel, "BOTTOMLEFT", 0, -6)
     channelHolder:SetWidth(LEFT_W - 20)
     channelHolder:SetHeight(VISIBLE_CHANNELS * CHANNEL_ROW_H + 6)
-    Backdrop(channelHolder, 0.02, 0.02, 0.03, 1, 1)
+    Inset(channelHolder)
 
     channelScroll = CreateFrame("ScrollFrame", "RaidRecruiterChannelScroll", channelHolder, "FauxScrollFrameTemplate")
     channelScroll:SetPoint("TOPLEFT", 2, -3)
@@ -824,7 +1002,7 @@ local function BuildWindow()
         channelRows[i] = row
     end
 
-    local staticLabel = Label(left, "ALSO", 10, C.accent)
+    local staticLabel = Heading(left, "ALSO")
     staticLabel:SetPoint("TOPLEFT", channelHolder, "BOTTOMLEFT", 0, -10)
 
     local guildCheck = CheckBox(left, "Guild")
@@ -839,7 +1017,7 @@ local function BuildWindow()
     yellCheck:SetPoint("LEFT", sayCheck, "RIGHT", 46, 0)
     yellCheck:SetScript("OnClick", function(self) RR.db.yell = self:GetChecked() and true or false end)
 
-    local intervalLabel = Label(left, "EVERY", 10, C.accent)
+    local intervalLabel = Heading(left, "EVERY")
     intervalLabel:SetPoint("TOPLEFT", guildCheck, "BOTTOMLEFT", 0, -14)
 
     intervalBox = EditBox(left, 44, 18, true)
@@ -853,20 +1031,14 @@ local function BuildWindow()
     local secondsLabel = Label(left, "seconds between rounds", 10, C.textDim)
     secondsLabel:SetPoint("LEFT", intervalBox, "RIGHT", 6, 0)
 
-    intervalSlider = CreateFrame("Slider", "RaidRecruiterIntervalSlider", left, "OptionsSliderTemplate")
+    intervalSlider = Slider(left, LEFT_W - 40, RR.MIN_INTERVAL, RR.MAX_INTERVAL, 5)
     intervalSlider:SetPoint("TOPLEFT", intervalLabel, "BOTTOMLEFT", 4, -14)
-    intervalSlider:SetWidth(LEFT_W - 40)
-    intervalSlider:SetMinMaxValues(RR.MIN_INTERVAL, RR.MAX_INTERVAL)
-    intervalSlider:SetValueStep(5)
-    _G["RaidRecruiterIntervalSliderLow"]:SetText(RR.MIN_INTERVAL .. "s")
-    _G["RaidRecruiterIntervalSliderHigh"]:SetText(RR.MAX_INTERVAL .. "s")
-    _G["RaidRecruiterIntervalSliderText"]:SetText("")
     intervalSlider:SetScript("OnValueChanged", function(self, value)
         ApplyInterval(value)
     end)
 
     local soundCheck = CheckBox(left, "Sound on a new whisper")
-    soundCheck:SetPoint("TOPLEFT", intervalSlider, "BOTTOMLEFT", -4, -10)
+    soundCheck:SetPoint("TOPLEFT", intervalSlider, "BOTTOMLEFT", -4, -16)
     soundCheck:SetScript("OnClick", function(self)
         RR.db.soundOnWhisper = self:GetChecked() and true or false
     end)
@@ -904,7 +1076,10 @@ local function BuildWindow()
     startButton = Button(left, "Start posting", LEFT_W - 20, 30)
     startButton:SetPoint("BOTTOMLEFT", 10, 30)
     startButton:SetColor(C.good)
-    startButton:SetScript("OnClick", function() RR.ToggleBroadcast() end)
+    startButton:SetScript("OnClick", function()
+        -- a due post goes out on this click; otherwise the button starts or stops the rounds
+        if RR.IsBroadcasting() and RR.IsPostDue() then RR.PostNow() else RR.ToggleBroadcast() end
+    end)
 
     statusText = Label(left, "idle", 10, C.textDim)
     statusText:SetPoint("BOTTOM", 0, 12)
@@ -913,13 +1088,13 @@ local function BuildWindow()
     local right = CreateFrame("Frame", nil, recruitPage)
     right:SetPoint("TOPLEFT", left, "TOPRIGHT", 10, 0)
     right:SetPoint("BOTTOMRIGHT", recruitPage, "BOTTOMRIGHT", -10, 12)
-    Backdrop(right, 0.03, 0.035, 0.045, 0.9, 1)
+    Section(right)
 
-    local filterLabel = Label(right, "APPLICANTS", 10, C.accent)
+    local filterLabel = Heading(right, "APPLICANTS")
     filterLabel:SetPoint("TOPLEFT", 10, -10)
 
     searchBox = EditBox(right, 110, 18)
-    searchBox:SetPoint("TOPLEFT", filterLabel, "BOTTOMLEFT", 0, -6)
+    searchBox:SetPoint("TOPLEFT", filterLabel, "BOTTOMLEFT", 0, -18)
     searchBox:SetScript("OnTextChanged", function(self)
         RR.searchText = self:GetText()
         RR.RefreshList()
@@ -948,6 +1123,7 @@ local function BuildWindow()
             button:SetPoint("LEFT", roleButtons[i - 1], "RIGHT", 3, 0)
         end
         button.role = def[1]
+        button.textColor = ({ TANK = C.tank, HEALER = C.healer, DPS = C.dps })[def[1]]
         button:SetScript("OnClick", function(self)
             RR.db.roleFilter = self.role
             RR.RefreshFilters()
@@ -968,7 +1144,7 @@ local function BuildWindow()
     headerBar:SetPoint("TOPLEFT", searchBox, "BOTTOMLEFT", 0, -8)
     headerBar:SetPoint("RIGHT", right, "RIGHT", -10, 0)
     headerBar:SetHeight(18)
-    Backdrop(headerBar, 0.02, 0.02, 0.03, 1)
+    Backdrop(headerBar, C.inset[1], C.inset[2], C.inset[3], 1)
 
     headerButtons = {}
     local headerDefs = {
@@ -1012,7 +1188,7 @@ local function BuildWindow()
     listHolder:SetPoint("TOPLEFT", headerBar, "BOTTOMLEFT", 0, -2)
     listHolder:SetPoint("RIGHT", right, "RIGHT", -10, 0)
     listHolder:SetHeight(VISIBLE_ROWS * ROW_H + 4)
-    Backdrop(listHolder, 0.02, 0.02, 0.03, 1, 1)
+    Inset(listHolder)
 
     listScroll = CreateFrame("ScrollFrame", "RaidRecruiterListScroll", listHolder, "FauxScrollFrameTemplate")
     listScroll:SetPoint("TOPLEFT", 2, -2)
@@ -1050,6 +1226,7 @@ local function BuildWindow()
         self.elapsed = self.elapsed + delta
         if self.elapsed < 0.25 then return end
         self.elapsed = 0
+        PaintFocus()
 
         -- Row ages ("left 4m ago") are only as honest as the last refresh, so
         -- the list is rebuilt on a slow tick alongside the countdown.
@@ -1060,8 +1237,11 @@ local function BuildWindow()
         end
 
         local remaining = RR.SecondsToNextPost()
-        if remaining then
-            statusText:SetText(string.format("next post in %ds", math.ceil(remaining)))
+        if remaining and RR.IsPostDue() then
+            statusText:SetText("post is due -- click Post now or press your key")
+            statusText:SetTextColor(C.good[1], C.good[2], C.good[3])
+        elseif remaining then
+            statusText:SetText(string.format("next post due in %ds", math.ceil(remaining)))
             statusText:SetTextColor(C.good[1], C.good[2], C.good[3])
         else
             statusText:SetText("idle -- nothing is being posted")
@@ -1120,7 +1300,7 @@ function RR.RefreshFilters()
 
     for _, button in ipairs(roleButtons) do
         if button.role == (db.roleFilter or "ANY") then
-            button:SetColor(C.accent)
+            button:SetColor(button.textColor or C.accent)
         else
             button:SetColor(C.accentDim)
         end
@@ -1238,6 +1418,7 @@ function RR.UI_Init()
     BuildWindow()
     if RR.LootUI_Init then RR.LootUI_Init() end
     if RR.RolesUI_Init then RR.RolesUI_Init() end
+    if RR.FeedUI_Init then RR.FeedUI_Init() end
     SetupMinimapButton()
     RR.SelectPage(RR.db.page or "recruit")
 end

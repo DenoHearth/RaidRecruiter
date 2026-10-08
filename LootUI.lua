@@ -44,7 +44,7 @@ local function BuildItemRow(parent, index)
     local Button = RR.UI_Button
     local row = CreateFrame("Button", nil, parent)
     row:SetHeight(ITEM_ROW_H - 2)
-    RR.UI_Backdrop(row, C.row[1], C.row[2], C.row[3], index % 2 == 0 and 0.5 or 0.28)
+    RR.UI_Row(row, index)
 
     row.name = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     row.name:SetPoint("LEFT", 6, 0)
@@ -107,7 +107,7 @@ end
 local function BuildRollRow(parent, index)
     local row = CreateFrame("Frame", nil, parent)
     row:SetHeight(ROLL_ROW_H - 2)
-    RR.UI_Backdrop(row, C.row[1], C.row[2], C.row[3], index % 2 == 0 and 0.5 or 0.28)
+    RR.UI_Row(row, index)
 
     row.place = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     row.place:SetPoint("LEFT", 6, 0)
@@ -405,9 +405,9 @@ function RR.LootUI_Init()
     left:SetPoint("TOPLEFT", 10, -10)
     left:SetWidth(300)
     left:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 10, 12)
-    RR.UI_Backdrop(left, 0.03, 0.035, 0.045, 0.9, 1)
+    RR.UI_Section(left)
 
-    local itemsLabel = Label(left, "ON THE CORPSE", 10, C.accent)
+    local itemsLabel = RR.UI_Heading(left, "ON THE CORPSE")
     itemsLabel:SetPoint("TOPLEFT", 10, -10)
 
     local rescan = Button(left, "Rescan", 52, 16)
@@ -427,7 +427,7 @@ function RR.LootUI_Init()
     itemHolder:SetPoint("TOPLEFT", mlText, "BOTTOMLEFT", 0, -8)
     itemHolder:SetPoint("RIGHT", left, "RIGHT", -10, 0)
     itemHolder:SetHeight(ITEM_ROWS * ITEM_ROW_H + 4)
-    RR.UI_Backdrop(itemHolder, 0.02, 0.02, 0.03, 1, 1)
+    RR.UI_Inset(itemHolder)
 
     itemRows = {}
     for i = 1, ITEM_ROWS do
@@ -458,7 +458,7 @@ function RR.LootUI_Init()
     dropTarget:SetHeight(20)
     dropTarget:SetPoint("TOPLEFT", itemHolder, "BOTTOMLEFT", 0, -4)
     dropTarget:SetPoint("RIGHT", itemHolder, "RIGHT", 0, 0)
-    RR.UI_Backdrop(dropTarget, 0.05, 0.06, 0.08, 1, 1)
+    RR.UI_Inset(dropTarget)
 
     local dropLabel = Label(dropTarget, "drag an item here to add it", 10, C.textDim)
     dropLabel:SetPoint("LEFT", 8, 0)
@@ -508,7 +508,7 @@ function RR.LootUI_Init()
     end)
     clearButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-    local timerLabel = Label(left, "ROLL LASTS", 10, C.accent)
+    local timerLabel = RR.UI_Heading(left, "ROLL LASTS")
     timerLabel:SetPoint("TOPLEFT", dropTarget, "BOTTOMLEFT", 0, -12)
 
     secondsBox = EditBox(left, 40, 18, true)
@@ -525,7 +525,7 @@ function RR.LootUI_Init()
     local secondsHint = Label(left, "seconds, announced in /rw", 10, C.textDim)
     secondsHint:SetPoint("LEFT", secondsBox, "RIGHT", 6, 0)
 
-    local historyLabel = Label(left, "GIVEN OUT", 10, C.accent)
+    local historyLabel = RR.UI_Heading(left, "GIVEN OUT")
     historyLabel:SetPoint("TOPLEFT", timerLabel, "BOTTOMLEFT", 0, -16)
 
     historyText = Label(left, "", 10, C.textDim)
@@ -537,9 +537,9 @@ function RR.LootUI_Init()
     local right = CreateFrame("Frame", nil, page)
     right:SetPoint("TOPLEFT", left, "TOPRIGHT", 10, 0)
     right:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -10, 12)
-    RR.UI_Backdrop(right, 0.03, 0.035, 0.045, 0.9, 1)
+    RR.UI_Section(right)
 
-    local rollLabel = Label(right, "CURRENT ROLL", 10, C.accent)
+    local rollLabel = RR.UI_Heading(right, "CURRENT ROLL")
     rollLabel:SetPoint("TOPLEFT", 10, -10)
 
     rollTimerText = Label(right, "", 12, C.good)
@@ -557,7 +557,7 @@ function RR.LootUI_Init()
     rollHolder:SetPoint("TOPLEFT", winnerText, "BOTTOMLEFT", 0, -8)
     rollHolder:SetPoint("RIGHT", right, "RIGHT", -10, 0)
     rollHolder:SetHeight(ROLL_ROWS * ROLL_ROW_H + 4)
-    RR.UI_Backdrop(rollHolder, 0.02, 0.02, 0.03, 1, 1)
+    RR.UI_Inset(rollHolder)
 
     rollRows = {}
     for i = 1, ROLL_ROWS do

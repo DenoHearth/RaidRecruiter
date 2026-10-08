@@ -19,17 +19,39 @@ RR.VERSION = "1.0"
 -- Colours ---------------------------------------------------------------------
 
 RR.COLOR = {
-    accent      = { 0.30, 0.62, 0.95 },
-    accentDim   = { 0.18, 0.36, 0.56 },
-    good        = { 0.35, 0.80, 0.40 },
-    warn        = { 0.95, 0.70, 0.25 },
-    bad         = { 0.85, 0.30, 0.30 },
-    text        = { 0.92, 0.92, 0.94 },
-    textDim     = { 0.62, 0.63, 0.68 },
-    panel       = { 0.06, 0.07, 0.09 },
-    row         = { 0.11, 0.12, 0.15 },
-    rowAlt      = { 0.09, 0.10, 0.12 },
+    accent      = { 0.52, 0.80, 1.00 },    -- selected things, section titles
+    accentDim   = { 0.15, 0.15, 0.16 },    -- a button at rest
+    good        = { 0.25, 0.85, 0.42 },
+    warn        = { 1.00, 0.76, 0.24 },
+    bad         = { 0.93, 0.32, 0.32 },
+    text        = { 0.95, 0.95, 0.96 },
+    textDim     = { 0.60, 0.62, 0.68 },
+    panel       = { 0.10, 0.10, 0.11 },    -- the window
+    section     = { 0.065, 0.075, 0.10 },  -- a block inside the window
+    inset       = { 0.045, 0.05, 0.065 },  -- lists and text boxes
+    row         = { 0.12, 0.13, 0.17 },
+    rowAlt      = { 0.09, 0.10, 0.13 },
+    rowHover    = { 0.18, 0.26, 0.36 },
+    border      = { 0.38, 0.38, 0.40 },
+    edge        = { 0.28, 0.29, 0.32 },    -- a button's outline at rest
+    line        = { 0.20, 0.24, 0.31 },
+    hover       = { 0.58, 0.80, 1.00 },
+    tabOn       = { 0.10, 0.20, 0.31 },
+    tank        = { 1.00, 0.55, 0.15 },    -- roles: orange, green, red, everywhere
+    healer      = { 0.25, 0.85, 0.42 },
+    dps         = { 0.93, 0.32, 0.32 },
 }
+
+-- The colour of a role as the addon writes it ("Tank", "Healer", "DPS", or a mix: the
+-- first one named wins). Dim for no role.
+function RR.RoleColor(role)
+    local C = RR.COLOR
+    if not role then return C.textDim end
+    if string.find(role, "Tank") then return C.tank end
+    if string.find(role, "Heal") then return C.healer end
+    if string.find(role, "DPS") then return C.dps end
+    return C.textDim
+end
 
 function RR.Hex(color)
     return string.format("|cff%02x%02x%02x",
@@ -110,7 +132,7 @@ end
 -- greyed out or hidden instead of sitting in the list looking unanswered.
 function RR.GroupedNames()
     local names = {}
-    local raid = GetNumRaidMembers and GetNumRaidMembers() or 0
+    local raid = RR.GetNumRaidMembers() or 0
     if raid > 0 then
         for i = 1, raid do
             local name = GetRaidRosterInfo(i)
@@ -119,12 +141,12 @@ function RR.GroupedNames()
         return names
     end
 
-    local party = GetNumPartyMembers and GetNumPartyMembers() or 0
+    local party = RR.GetNumPartyMembers() or 0
     for i = 1, party do
-        local name = UnitName("party" .. i)
+        local name = RR.UnitName("party" .. i)
         if name then names[name] = true end
     end
-    local me = UnitName("player")
+    local me = RR.UnitName("player")
     if me then names[me] = true end
     return names
 end
@@ -134,20 +156,20 @@ end
 -- inspection, and /rr roles still needs it.
 function RR.GroupUnits()
     local units = {}
-    local raid = GetNumRaidMembers and GetNumRaidMembers() or 0
+    local raid = RR.GetNumRaidMembers() or 0
     if raid > 0 then
         for i = 1, raid do
             local name = GetRaidRosterInfo(i)
-            if name and name ~= UnitName("player") then
+            if name and name ~= RR.UnitName("player") then
                 units[name] = "raid" .. i
             end
         end
         return units
     end
 
-    local party = GetNumPartyMembers and GetNumPartyMembers() or 0
+    local party = RR.GetNumPartyMembers() or 0
     for i = 1, party do
-        local name = UnitName("party" .. i)
+        local name = RR.UnitName("party" .. i)
         if name then units[name] = "party" .. i end
     end
     return units
@@ -162,11 +184,11 @@ function RR.GroupIsFull()
 end
 
 function RR.GroupSize()
-    local raid = GetNumRaidMembers and GetNumRaidMembers() or 0
+    local raid = RR.GetNumRaidMembers() or 0
     if raid > 0 then
         return raid, 40
     end
-    local party = GetNumPartyMembers and GetNumPartyMembers() or 0
+    local party = RR.GetNumPartyMembers() or 0
     if party > 0 then
         return party + 1, 5
     end
@@ -230,7 +252,7 @@ function RR.GroupRoles()
         end
     end
 
-    local raid = GetNumRaidMembers and GetNumRaidMembers() or 0
+    local raid = RR.GetNumRaidMembers() or 0
     if raid > 0 then
         for i = 1, raid do
             local name = GetRaidRosterInfo(i)
@@ -239,16 +261,16 @@ function RR.GroupRoles()
         return counts, unknown
     end
 
-    local party = GetNumPartyMembers and GetNumPartyMembers() or 0
+    local party = RR.GetNumPartyMembers() or 0
     if party > 0 then
-        Add(UnitName("player"))
+        Add(RR.UnitName("player"))
         for i = 1, party do
-            Add(UnitName("party" .. i))
+            Add(RR.UnitName("party" .. i))
         end
         return counts, unknown
     end
 
-    Add(UnitName("player"))
+    Add(RR.UnitName("player"))
     return counts, unknown
 end
 
@@ -264,7 +286,7 @@ end
 -- answers here are ones somebody gave, so this says who has not answered yet.
 function RR.PrintRoles()
     local units = RR.GroupUnits and RR.GroupUnits() or {}
-    local names = { UnitName("player") }
+    local names = { RR.UnitName("player") }
     for name in pairs(units) do names[#names + 1] = name end
     table.sort(names)
 
@@ -330,10 +352,14 @@ loader:SetScript("OnEvent", function(self, event, arg1)
         if RR.Ilvl_Init then RR.Ilvl_Init() end
         if RR.Pull_Init then RR.Pull_Init() end
         if RR.RoleCall_Init then RR.RoleCall_Init() end
+        if RR.Feed_Init then RR.Feed_Init() end
     elseif event == "PLAYER_LOGIN" then
         if RR.UI_Init then RR.UI_Init() end
     end
 end)
+
+BINDING_HEADER_RAIDRECRUITER = "Raid Recruiter"
+BINDING_NAME_RAIDRECRUITER_POST = "Post LFM now (when a post is due)"
 
 SLASH_RAIDRECRUITER1 = "/rr"
 SLASH_RAIDRECRUITER2 = "/raidrecruiter"

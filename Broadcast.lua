@@ -127,7 +127,68 @@ function RR.PostNow()
 
     RR.lastPost = time()
     nextPostAt = GetTime() + (db.interval or 60)
+    RR.ClearPostDue()
+    -- the next round is counted from this post, not from when the last one was due
+    if ticker then ticker:Cancel() end
+    ticker = nil
+    if running then
+        ticker = C_Timer.NewTimer(db.interval or 60, function()
+            if running then RR.MarkPostDue() end
+        end)
+    end
     return true
+end
+
+-- Due posts ---------------------------------------------------------------------
+--
+-- When a round is due the addon asks instead of posting: a prompt on screen, a sound, and
+-- the key bound to "Post now" in the game's key bindings. The click or key press is the
+-- hardware event the client wants before a message goes to a public channel.
+
+local due = false
+local prompt
+
+local function Prompt()
+    if prompt then return prompt end
+    prompt = CreateFrame("Button", "RaidRecruiterPostPrompt", UIParent)
+    prompt:SetSize(240, 40)
+    prompt:SetPoint("TOP", UIParent, "TOP", 0, -150)
+    prompt:SetFrameStrata("HIGH")
+    local fill = prompt:CreateTexture(nil, "BACKGROUND")
+    fill:SetAllPoints()
+    fill:SetColorTexture(0.16, 0.5, 0.24, 0.95)
+    local text = prompt:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    text:SetPoint("CENTER", 0, 6)
+    text:SetText("Post LFM now")
+    text:SetTextColor(1, 1, 1)
+    local hint = prompt:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    hint:SetPoint("CENTER", 0, -10)
+    hint:SetText("click, or press your Raid Recruiter key")
+    prompt:SetScript("OnClick", function() RR.PostNow() end)
+    prompt:Hide()
+    return prompt
+end
+
+function RR.IsPostDue()
+    return due
+end
+
+function RR.MarkPostDue()
+    due = true
+    Prompt():Show()
+    PlaySound(SOUNDKIT.RAID_WARNING)
+    if RR.RefreshBroadcastUI then RR.RefreshBroadcastUI() end
+end
+
+function RR.ClearPostDue()
+    due = false
+    if prompt then prompt:Hide() end
+    if RR.RefreshBroadcastUI then RR.RefreshBroadcastUI() end
+end
+
+-- The key binding (Bindings.xml) and the prompt both end up here.
+function RaidRecruiter_PostNow()
+    if running then RR.PostNow() end
 end
 
 -- Timer -----------------------------------------------------------------------
@@ -161,14 +222,12 @@ function RR.StartBroadcast()
     db.interval = interval
 
     running = true
+    -- Starting is a click, so this first post goes out. Every later one waits for a click
+    -- or a key press: Forever does not let an addon talk in public channels on a timer.
     RR.PostNow()
 
-    ticker = C_Timer.NewTicker(interval, function()
-        if not running then return end
-        RR.PostNow()
-    end)
-
-    RR.Print("posting every %ds to %d target(s). /rr stop to end.", interval, #RR.SelectedTargets())
+    RR.Print("post due every %ds to %d target(s): click the prompt or press your key. /rr stop to end.",
+        interval, #RR.SelectedTargets())
     if RR.RefreshBroadcastUI then RR.RefreshBroadcastUI() end
 end
 
@@ -180,6 +239,7 @@ function RR.StopBroadcast(quiet)
     local wasRunning = running
     running = false
     nextPostAt = 0
+    RR.ClearPostDue()
 
     if wasRunning and not quiet then
         RR.Print("stopped posting.")

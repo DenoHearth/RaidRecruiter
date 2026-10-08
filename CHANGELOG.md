@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.0.0 — 2026-10-08
+
+- Raid Recruiter 3.0 for World of Warcraft: Forever: new LFG feed page, new window design, role colours, posting by click or key (Forever blocks timed channel posts), leavers come off the applicant list until they whisper again
+
 ## v2.6 — 2026-08-27
 
 - pull timer counts up to 300 seconds and calls the round marks

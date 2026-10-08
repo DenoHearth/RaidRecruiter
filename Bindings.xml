@@ -1,0 +1,5 @@
+<Bindings>
+	<Binding name="RAIDRECRUITER_POST" header="RAIDRECRUITER" category="ADDONS">
+		RaidRecruiter_PostNow()
+	</Binding>
+</Bindings>

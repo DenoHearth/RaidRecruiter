@@ -251,17 +251,17 @@ end
 function RR.UnitForName(name)
     if not name then return nil end
 
-    local raid = GetNumRaidMembers and GetNumRaidMembers() or 0
+    local raid = RR.GetNumRaidMembers() or 0
     for i = 1, raid do
-        if UnitName("raid" .. i) == name then return "raid" .. i end
+        if RR.UnitName("raid" .. i) == name then return "raid" .. i end
     end
 
-    local party = GetNumPartyMembers and GetNumPartyMembers() or 0
+    local party = RR.GetNumPartyMembers() or 0
     for i = 1, party do
-        if UnitName("party" .. i) == name then return "party" .. i end
+        if RR.UnitName("party" .. i) == name then return "party" .. i end
     end
 
-    if UnitName("target") == name then return "target" end
+    if RR.UnitName("target") == name then return "target" end
     return nil
 end
 

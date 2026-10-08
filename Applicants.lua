@@ -283,7 +283,7 @@ local function AddWhisper(msg, sender, ...)
         local ok, short = pcall(Ambiguate, sender, "none")
         if ok and short and short ~= "" then name = short end
     end
-    if name == UnitName("player") then return end
+    if name == RR.UnitName("player") then return end
 
     local record = applicants[name]
     local isNew = false
@@ -302,6 +302,7 @@ local function AddWhisper(msg, sender, ...)
     record.count = record.count + 1
     record.lastSeen = time()
     record.message = msg
+    record.away = nil       -- they wrote again: back on the list
 
     -- Keep the best information seen across all of this player's whispers: a
     -- follow-up "sorry, dps" must not wipe the item level from the first line.
@@ -332,7 +333,7 @@ local function AddWhisper(msg, sender, ...)
     if level and level > 0 then record.level = level end
 
     if isNew and RR.db and RR.db.soundOnWhisper then
-        PlaySound("igCharacterInfoTab")
+        PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB)
     end
 
     RR.MaybeReplyFull(record, msg)
@@ -343,15 +344,16 @@ end
 
 -- Leavers ---------------------------------------------------------------------
 --
--- Someone who was in the group and is not any more went back on the list looking
--- exactly like a fresh applicant, so the row now carries when they dropped out.
+-- Someone who was in the group and is not any more comes off the list: they joined and
+-- left, and that is not an application any more. A new whisper from them puts them back,
+-- and the row then carries when they dropped out and how many times.
 -- The check only runs while you still have a group: disbanding or zoning out
 -- empties the roster in one go and that is not twenty-four people leaving.
 
 function RR.SyncGroupState()
     local grouped = RR.GroupedNames()
-    local haveGroup = (GetNumRaidMembers and GetNumRaidMembers() or 0) > 0
-        or (GetNumPartyMembers and GetNumPartyMembers() or 0) > 0
+    local haveGroup = (RR.GetNumRaidMembers() or 0) > 0
+        or (RR.GetNumPartyMembers() or 0) > 0
 
     for _, name in ipairs(order) do
         local record = applicants[name]
@@ -361,9 +363,11 @@ function RR.SyncGroupState()
                 -- Back in. The count stays: a second departure still reads
                 -- "left 2x", which is the part worth knowing before re-inviting.
                 record.leftAt = nil
+                record.away = nil
             elseif record.grouped and haveGroup then
                 record.leftAt = time()
                 record.leftCount = (record.leftCount or 0) + 1
+                record.away = true
             end
             record.grouped = now
         end
@@ -376,6 +380,10 @@ end
 
 local function PassesFilter(record, grouped)
     local db = RR.db
+
+    if record.away then
+        return false
+    end
 
     if db.hideGrouped and grouped[record.name] then
         return false
@@ -414,10 +422,12 @@ function RR.BuildList()
     local db = RR.db
     local grouped = RR.SyncGroupState()
     local list = {}
+    local total = 0
 
     for _, name in ipairs(order) do
         local record = applicants[name]
         if record then
+            if not record.away then total = total + 1 end
             if PassesFilter(record, grouped) then
                 list[#list + 1] = record
             end
@@ -453,18 +463,23 @@ function RR.BuildList()
         return av < bv
     end)
 
-    return list, #order
+    return list, total
 end
 
 function RR.CountApplicants()
-    return #order
+    local count = 0
+    for _, name in ipairs(order) do
+        local record = applicants[name]
+        if record and not record.away then count = count + 1 end
+    end
+    return count
 end
 
 -- Invite ----------------------------------------------------------------------
 
 function RR.Invite(name)
     if not name or name == "" then return end
-    InviteUnit(name)
+    RR.InviteUnit(name)
     RR.MarkInvited(name)
 end
 
@@ -488,7 +503,7 @@ function RR.Applicants_Init()
 
     -- Registering an event this client does not know throws, and one bad name
     -- must not cost the others their registration.
-    for _, event in ipairs({ "CHAT_MSG_WHISPER", "PARTY_MEMBERS_CHANGED", "RAID_ROSTER_UPDATE" }) do
+    for _, event in ipairs({ "CHAT_MSG_WHISPER", "GROUP_ROSTER_UPDATE", "RAID_ROSTER_UPDATE" }) do
         pcall(watcher.RegisterEvent, watcher, event)
     end
 
