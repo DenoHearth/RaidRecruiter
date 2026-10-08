@@ -179,7 +179,7 @@ local function Trim()
     end
 end
 
--- Players dismissed with a right-click: name -> the clock time they come back.
+-- Players dismissed with the Hide button: name -> the clock time they come back.
 local function Hidden()
     RR.db.feedHidden = RR.db.feedHidden or {}
     return RR.db.feedHidden
@@ -548,12 +548,28 @@ function RR.FeedUI_Init()
         row.roles:SetJustifyH("LEFT")
         row.text = Label(row, "", 10, C.textDim)
         row.text:SetPoint("LEFT", 310, 0)
-        row.text:SetPoint("RIGHT", -204, 0)
+        row.text:SetPoint("RIGHT", -250, 0)
         row.text:SetJustifyH("LEFT")
         row.text:SetWordWrap(false)
         row.ago = Label(row, "", 10, C.textDim)
-        row.ago:SetPoint("RIGHT", -166, 0)
+        row.ago:SetPoint("RIGHT", -212, 0)
 
+        -- Every action is its own button: nothing happens from a click on the row itself,
+        -- so a slip of the finger cannot whisper or hide anybody.
+        row.hide = Button(row, "Hide", 40, 20)
+        row.hide:SetPoint("RIGHT", -164, 0)
+        row.hide:SetScript("OnClick", function()
+            if row.entry then Dismiss(row.entry.name) end
+        end)
+        row.hide:SetScript("OnEnter", function(self)
+            self:SetHover(true)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:AddLine("Hide", 1, 1, 1)
+            GameTooltip:AddLine("Hides this player's posts for 30 minutes. \"Bring back hidden\" at the bottom undoes it.",
+                0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end)
+        row.hide:SetScript("OnLeave", function(self) self:SetHover(false) GameTooltip:Hide() end)
         row.who = Button(row, "Who", 36, 20)
         row.who:SetPoint("RIGHT", -124, 0)
         row.who:SetScript("OnClick", function()
@@ -571,18 +587,6 @@ function RR.FeedUI_Init()
         end)
 
         row:EnableMouse(true)
-        -- left: whisper, shift-left: who, right: hide this player for a while
-        row:SetScript("OnMouseUp", function(self, button)
-            local entry = self.entry
-            if not entry then return end
-            if button == "RightButton" then
-                Dismiss(entry.name)
-            elseif IsShiftKeyDown() then
-                Who(entry.name)
-            else
-                Whisper(entry.name)
-            end
-        end)
         row:SetScript("OnEnter", function(self)
             local entry = self.entry
             if not entry then return end
@@ -595,8 +599,6 @@ function RR.FeedUI_Init()
                     0.5, 0.5, 0.5)
             end
             if entry.mate then GameTooltip:AddLine("Guild mate or friend", C.warn[1], C.warn[2], C.warn[3]) end
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Click: whisper.  Shift-click: who.  Right-click: hide for 30 minutes.", 0.6, 0.8, 1, true)
             GameTooltip:Show()
         end)
         row:SetScript("OnLeave", function() GameTooltip:Hide() end)

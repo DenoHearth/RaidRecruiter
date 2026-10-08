@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.1.1 — 2026-10-08
+
+- LFG feed: hiding a player is now a Hide button on the row; a click on the row itself does nothing, so a slip cannot whisper or hide anybody
+
 ## v3.1.0 — 2026-10-08
 
 - LFG feed: Forever's own dungeons and raids, Guild category, role and content filters, sort by dungeon, boost ads hidden, Who button, right-click hides a player for 30 minutes, guild mates and friends first
