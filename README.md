@@ -14,8 +14,8 @@ Warcraft: Forever and its addon rules. `/rr` opens it.
 - **LFG feed:** everyone posting LFG, LFM, guild recruitment or trade in the channels you
   are in: who, which dungeon or raid (classic and Forever's own), which roles they ask for,
   the message. Filter by kind, by role (tank, healer, DPS) and by dungeons or raids; sort by
-  newest or by dungeon; search. Boost and carry ads are hidden by default. Whisper, Who and
-  Invite on every row; right-click hides a player for 30 minutes. Guild mates and friends are
+  newest or by dungeon; search. Boost and carry ads are hidden by default. Whisper, Who,
+  Invite and Hide (30 minutes) as buttons on every row; nothing happens from a stray click. Guild mates and friends are
   starred and listed first; people on your ignore list never show. It only reads chat.
 - **Recruiting:** write your LFM message, tick the channels, set the interval. Everyone who
   whispers you lands in a sortable list with item level, level and role taken from what
@@ -70,4 +70,4 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).  Current version: 3.1.0.
+MIT — see [LICENSE](LICENSE).  Current version: 3.1.1.
