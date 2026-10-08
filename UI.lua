@@ -11,7 +11,7 @@ local ADDON_NAME, RR = ...
 
 local C = RR.COLOR
 
-local WINDOW_W, WINDOW_H = 790, 634
+local WINDOW_W, WINDOW_H = 830, 644
 local HEADER_H = 46
 local LEFT_W = 300
 local ROW_H = 34
@@ -342,7 +342,7 @@ local function BuildRow(parent, index)
 
     row.name = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     row.name:SetPoint("TOPLEFT", 6, -4)
-    row.name:SetWidth(120)
+    row.name:SetWidth(110)
     row.name:SetJustifyH("LEFT")
 
     row.level = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -357,7 +357,7 @@ local function BuildRow(parent, index)
 
     row.role = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.role:SetPoint("TOPLEFT", row.ilvl, "TOPRIGHT", 2, 0)
-    row.role:SetWidth(74)
+    row.role:SetWidth(66)
     row.role:SetJustifyH("LEFT")
 
     row.when = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -378,8 +378,13 @@ local function BuildRow(parent, index)
 
     row.invite = Button(row, "Invite", 46, 18)
     row.invite:SetPoint("RIGHT", -60, 0)
+    row.noteButton = Button(row, "Note", 36, 18)
+    row.noteButton:SetPoint("RIGHT", row.invite, "LEFT", -3, 0)
+    row.noteButton:SetScript("OnClick", function(self)
+        if self:GetParent().applicantName then RR.OpenNote(self:GetParent().applicantName) end
+    end)
     -- On the bottom line, ending where the buttons start; the message gives way to it.
-    row.flag:SetPoint("BOTTOMRIGHT", row.invite, "BOTTOMLEFT", -6, -3)
+    row.flag:SetPoint("BOTTOMRIGHT", row.noteButton, "BOTTOMLEFT", -6, -3)
     row.invite:SetScript("OnClick", function(self)
         if self:GetParent().applicantName then
             RR.Invite(self:GetParent().applicantName)
@@ -413,6 +418,12 @@ local function BuildRow(parent, index)
         end
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine(record.message or "", 0.8, 0.8, 0.8, true)
+        local note = RR.GetNote(record.name)
+        if note then GameTooltip:AddLine("Note: " .. note, C.warn[1], C.warn[2], C.warn[3], true) end
+        local ever = RR.LeftEver(record.name)
+        if ever > 0 then
+            GameTooltip:AddLine(string.format("Has left your groups %d time(s) in all", ever), 0.7, 0.5, 0.5)
+        end
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine(string.format("%d whisper(s), first %s ago", record.count or 1, RR.AgoText(record.firstSeen)), 0.6, 0.6, 0.6)
         if record.invited then
@@ -470,8 +481,14 @@ local function FillRow(row, record)
     if string.len(message) > 62 then
         message = string.sub(message, 1, 60) .. "..."
     end
+    -- a note takes the place of the whisper on the bottom line: it is what you wrote yourself
+    local note = RR.GetNote(record.name)
+    if note then message = "Note: " .. note end
     row.message:SetWidth(record.leftAt and 190 or 290)
     row.message:SetText(message)
+    local noteColor = note and C.warn or C.textDim
+    row.message:SetTextColor(noteColor[1], noteColor[2], noteColor[3])
+    row.noteButton:SetColor(note and C.warn or C.accentDim)
 
     -- Left the group: say so and say how long ago, because a name that dropped
     -- out thirty seconds ago and one that dropped two hours ago are not the same
@@ -1091,6 +1108,21 @@ local function BuildWindow()
         RR.db.fullReply = self:GetText() or ""
     end)
 
+    local wordCheck = CheckBox(left, "Invite on the whisper word")
+    wordCheck:SetPoint("TOPLEFT", replyLabel, "BOTTOMLEFT", -4, -8)
+    wordCheck:SetScript("OnClick", function(self)
+        RR.db.inviteWordEnabled = self:GetChecked() and true or false
+    end)
+    local wordBox = EditBox(left, 60, 18)
+    wordBox:SetPoint("LEFT", wordCheck.label, "RIGHT", 6, 0)
+    wordBox:SetMaxLetters(20)
+    wordBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    wordBox:SetScript("OnTextChanged", function(self)
+        RR.db.inviteWord = string.lower(strtrim(self:GetText() or ""))
+    end)
+    window.wordCheck = wordCheck
+    window.wordBox = wordBox
+
     startButton = Button(left, "Start posting", LEFT_W - 20, 30)
     startButton:SetPoint("BOTTOMLEFT", 10, 30)
     startButton:SetColor(C.good)
@@ -1166,11 +1198,11 @@ local function BuildWindow()
 
     headerButtons = {}
     local headerDefs = {
-        { "name", "Name", 0, 120 },
-        { "level", "Lvl", 124, 30 },
-        { "ilvl", "iLvl", 156, 52 },
-        { "role", "Role", 210, 74 },
-        { "time", "When", 286, 40 },
+        { "name", "Name", 0, 110 },
+        { "level", "Lvl", 112, 30 },
+        { "ilvl", "iLvl", 144, 52 },
+        { "role", "Role", 198, 66 },
+        { "time", "When", 266, 40 },
     }
     for _, def in ipairs(headerDefs) do
         local button = CreateFrame("Button", nil, headerBar)
@@ -1354,6 +1386,8 @@ local function LoadWidgets()
     window.capCheck:SetChecked(db.fullReplyEnabled and true or false)
     capBox:SetText(tostring(db.maxPlayers or 25))
     replyBox:SetText(db.fullReply or "")
+    window.wordCheck:SetChecked(db.inviteWordEnabled and true or false)
+    window.wordBox:SetText(db.inviteWord or "inv")
 
     if RR.LoadLootWidgets then RR.LoadLootWidgets() end
 

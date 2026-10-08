@@ -126,7 +126,7 @@ local function BuildRollRow(parent, index)
 
     row.note = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     row.note:SetPoint("LEFT", row.roll, "RIGHT", 2, 0)
-    row.note:SetWidth(100)
+    row.note:SetWidth(150)
     row.note:SetJustifyH("LEFT")
 
     row.give = RR.UI_Button(row, "Give", 40, 17)
@@ -239,6 +239,8 @@ function RR.RefreshLootUI()
         rollTimerText:SetText("")
     end
 
+    if RR.lootRulesCheck then RR.lootRulesCheck:SetChecked(RR.LootRulesOn()) end
+
     local results = roll and RR.RollResults() or {}
     local winners, tied, contested = {}, {}, 0
     if roll then
@@ -271,16 +273,22 @@ function RR.RefreshLootUI()
                 row.roll:SetTextColor(C.text[1], C.text[2], C.text[3])
             end
 
+            local status = ""
             if entry.late then
-                row.note:SetText("late, no win")
+                status = "late, no win"
             elseif entry.odd then
-                row.note:SetText(string.format("rolled %d-%d", entry.low or 0, entry.high or 0))
+                status = string.format("rolled %d-%d", entry.low or 0, entry.high or 0)
             elseif roll and roll.given and roll.given[entry.name] then
-                row.note:SetText("got it")
+                status = "got it"
             elseif tiedNames[entry.name] then
-                row.note:SetText("tied")
+                status = "tied"
+            end
+            -- with the loot rules on: main or off spec, and how often they won tonight
+            local tag = entry.spec and (entry.spec .. (entry.wins > 0 and ("  +" .. entry.wins) or "")) or nil
+            if tag then
+                row.note:SetText(status ~= "" and (tag .. "   " .. status) or tag)
             else
-                row.note:SetText("")
+                row.note:SetText(status)
             end
 
             -- Handing the item over is only offered once the roll is settled, so
@@ -571,6 +579,24 @@ function RR.LootUI_Init()
         row:Hide()
         rollRows[i] = row
     end
+
+    -- the loot rules, and the count they keep
+    local rulesCheck = RR.UI_CheckBox(right, "Main spec first, then fewest wins tonight")
+    rulesCheck:SetPoint("BOTTOMLEFT", 8, 44)
+    rulesCheck:SetScript("OnClick", function(self)
+        RR.db.lootRules = self:GetChecked() and true or false
+        RR.RefreshLootUI()
+    end)
+    RR.lootRulesCheck = rulesCheck
+    local resetWins = Button(right, "Reset wins", 80, 20)
+    resetWins:SetPoint("BOTTOMRIGHT", -10, 44)
+    resetWins:SetScript("OnClick", function()
+        RR.ResetWins()
+        RR.Print("wins of tonight reset: everybody is back at zero.")
+        RR.RefreshLootUI()
+    end)
+    local rulesHint = Label(right, "/roll = main spec,  /roll 99 = off spec.  A main spec win counts as +1.", 10, C.textDim)
+    rulesHint:SetPoint("BOTTOMLEFT", 12, 70)
 
     assignButton = Button(right, "Give to winner", 150, 24)
     assignButton:SetPoint("BOTTOMLEFT", 10, 10)

@@ -88,6 +88,9 @@ RR.defaults = {
     minimap = { hide = false },
     page = "recruit",
     rollSeconds = 15,       -- how long a loot roll stays open, announced in /rw
+    lootRules = true,       -- main spec (/roll) before off spec (/roll 99), fewest wins tonight first
+    inviteWordEnabled = false,
+    inviteWord = "inv",     -- a whisper that is this word gets an invite while there is room
     rollCountdownFrom = 5,  -- start the 5,4,3,2,1 countdown at this many left
     lootMinQuality = 3,     -- blue and up; grey/green trash never needs a roll
     stash = {},             -- boss drops now in your own bags, still to hand out

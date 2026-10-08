@@ -275,6 +275,28 @@ function RR.MaybeReplyFull(record, message)
     pcall(SendChatMessage, reply, "WHISPER", nil, record.name)
 end
 
+-- Invite word: a whisper that is the word, or starts with it, gets an invite while there is
+-- room. Never for someone on your ignore list or hidden in the LFG feed.
+function RR.MaybeInviteOnWord(record, message)
+    local db = RR.db
+    if not db.inviteWordEnabled then return end
+    local word = string.lower(strtrim(db.inviteWord or ""))
+    if word == "" then return end
+    local text = string.lower(strtrim(message or ""))
+    if text ~= word and string.sub(text, 1, #word + 1) ~= word .. " " then return end
+    if RR.GroupedNames()[record.name] then return end
+    if RR.GroupIsFull() then return end
+    if C_FriendList.IsIgnored and C_FriendList.IsIgnored(record.name) then return end
+    local hidden = db.feedHidden and db.feedHidden[record.name]
+    if hidden and time() < hidden then return end
+    RR.Invite(record.name)
+end
+
+-- How often this player has left your groups, over all sessions.
+function RR.LeftEver(name)
+    return (RR.db.leftEver and RR.db.leftEver[name]) or 0
+end
+
 local function AddWhisper(msg, sender, ...)
     if not sender or sender == "" then return end
 
@@ -337,6 +359,7 @@ local function AddWhisper(msg, sender, ...)
     end
 
     RR.MaybeReplyFull(record, msg)
+    RR.MaybeInviteOnWord(record, msg)
 
     if RR.RefreshList then RR.RefreshList() end
     if RR.FlashNew then RR.FlashNew(isNew) end
@@ -367,6 +390,8 @@ function RR.SyncGroupState()
             elseif record.grouped and haveGroup then
                 record.leftAt = time()
                 record.leftCount = (record.leftCount or 0) + 1
+                RR.db.leftEver = RR.db.leftEver or {}
+                RR.db.leftEver[name] = (RR.db.leftEver[name] or 0) + 1
                 record.away = true
             end
             record.grouped = now

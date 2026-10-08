@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.2.0 — 2026-10-08
+
+- Loot rules: /roll is main spec, /roll 99 is off spec, main spec first and then fewest wins tonight; invite on a whisper word; notes on players that stay between sessions
+
 ## v3.1.2 — 2026-10-08
 
 - Tank, healer and DPS letters and counts each keep their own colour (orange, green, red) in the LFG feed and in the group readouts

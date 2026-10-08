@@ -187,6 +187,53 @@ end
 
 RR.Announce = Announce
 
+-- Loot rules (a switch on the loot page): main spec before off spec, and among equals
+-- whoever has won least tonight. /roll (1-100) is main spec, /roll 99 (1-99) is off spec.
+function RR.LootRulesOn()
+    return RR.db.lootRules ~= false
+end
+
+-- Main spec wins of this raid night: the count starts over after six hours without a win.
+local WINS_FORGET = 6 * 3600
+
+local function Wins()
+    local store = RR.db.lootWins
+    if type(store) ~= "table" or type(store.wins) ~= "table" or time() - (store.lastAt or 0) > WINS_FORGET then
+        store = { wins = {}, lastAt = time() }
+        RR.db.lootWins = store
+    end
+    return store.wins, store
+end
+
+function RR.WinsTonight(name)
+    return Wins()[name] or 0
+end
+
+function RR.ResetWins()
+    RR.db.lootWins = nil
+end
+
+local function AddWin(name)
+    local wins, store = Wins()
+    wins[name] = (wins[name] or 0) + 1
+    store.lastAt = time()
+end
+
+local function SpecOf(low, high)
+    if low == 1 and high == 100 then return "MS" end
+    if low == 1 and high == 99 then return "OS" end
+    return nil
+end
+
+local SPEC_RANK = { MS = 1, OS = 2 }
+
+-- "87", or with the rules on "87 MS" and "64 MS +1".
+local function RollText(entry)
+    if not entry.spec then return tostring(entry.roll) end
+    return entry.roll .. " " .. entry.spec .. (entry.wins > 0 and (" +" .. entry.wins) or "")
+end
+RR.RollText = RollText
+
 function RR.StartRoll(item)
     if not item or not item.link then return end
 
@@ -218,11 +265,12 @@ function RR.StartRoll(item)
         closed = false,
     }
 
+    local how = RR.LootRulesOn() and "/roll for main spec, /roll 99 for off spec" or "/roll now"
     if copies > 1 then
-        Announce(string.format("Roll on %s -- %d copies, top %d win. /roll now, %d seconds.",
-            item.link, copies, copies, seconds))
+        Announce(string.format("Roll on %s -- %d copies, top %d win. %s, %d seconds.",
+            item.link, copies, copies, how, seconds))
     else
-        Announce(string.format("Roll on %s -- /roll now, %d seconds.", item.link, seconds))
+        Announce(string.format("Roll on %s -- %s, %d seconds.", item.link, how, seconds))
     end
 
     -- Quarter-second ticker, not one second: the countdown below has to catch
@@ -270,29 +318,47 @@ function RR.RollResults()
     local roll = RR.activeRoll
     if not roll then return {} end
 
+    local rules = RR.LootRulesOn()
     local list = {}
     for _, name in ipairs(roll.order) do
         local entry = roll.rolls[name]
         if entry then
+            local spec = rules and SpecOf(entry.low, entry.high) or nil
+            local odd
+            if rules then odd = (spec == nil) else odd = (entry.low ~= 1 or entry.high ~= 100) end
             list[#list + 1] = {
                 name = name,
                 roll = entry.roll,
                 low = entry.low,
                 high = entry.high,
                 late = entry.late,
-                odd = (entry.low ~= 1 or entry.high ~= 100),
+                odd = odd,
                 at = entry.at,
+                spec = spec,
+                wins = rules and RR.WinsTonight(name) or 0,
             }
         end
     end
 
+    -- With the rules on: main spec, then off spec, then the rest; inside a spec whoever has
+    -- won least tonight; then the roll. Without them: the roll alone.
     table.sort(list, function(a, b)
+        if rules then
+            local ar, br = SPEC_RANK[a.spec] or 3, SPEC_RANK[b.spec] or 3
+            if ar ~= br then return ar < br end
+            if a.wins ~= b.wins then return a.wins < b.wins end
+        end
         if a.roll == b.roll then
             return (a.at or 0) < (b.at or 0)
         end
         return a.roll > b.roll
     end)
     return list
+end
+
+-- Two rolls are equal when nothing in the order above separates them.
+local function SameStanding(a, b)
+    return a.roll == b.roll and a.spec == b.spec and a.wins == b.wins
 end
 
 -- Work out who takes the copies.
@@ -323,8 +389,8 @@ function RR.RollOutcome()
     while #winners < copies and index <= #eligible do
         -- Everyone on this exact roll value moves or stalls together.
         local group = {}
-        local value = eligible[index].roll
-        while index <= #eligible and eligible[index].roll == value do
+        local first = eligible[index]
+        while index <= #eligible and SameStanding(eligible[index], first) do
             group[#group + 1] = eligible[index]
             index = index + 1
         end
@@ -360,11 +426,11 @@ function RR.CloseRoll()
     end
 
     if #winners == 1 then
-        Announce(string.format("%s wins %s with %d.", winners[1].name, roll.link, winners[1].roll))
+        Announce(string.format("%s wins %s with %s.", winners[1].name, roll.link, RollText(winners[1])))
     elseif #winners > 1 then
         local parts = {}
         for _, entry in ipairs(winners) do
-            parts[#parts + 1] = string.format("%s (%d)", entry.name, entry.roll)
+            parts[#parts + 1] = string.format("%s (%s)", entry.name, RollText(entry))
         end
         Announce(string.format("%s goes to %s.", roll.link, table.concat(parts, ", ")))
     end
@@ -516,6 +582,13 @@ function RR.RecordHandover(name, link, slot)
         Announce(string.format("%s goes to %s (%d).", link, name, wonWith))
     else
         Announce(string.format("%s goes to %s.", link, name))
+    end
+
+    -- a main spec win counts against the winner for the rest of the night
+    if roll and roll.link == link and RR.LootRulesOn() then
+        for _, entry in ipairs(RR.RollResults()) do
+            if entry.name == name and entry.spec == "MS" and not entry.late then AddWin(name) end
+        end
     end
 
     RR.rollHistory[#RR.rollHistory + 1] = {

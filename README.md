@@ -27,6 +27,10 @@ Warcraft: Forever and its addon rules. `/rr` opens it.
 - **Loot rolls:** put a drop up for roll in /rw, see who rolled what, hand it to the winner
   by master loot or by trade from your bags.
 - **Pull timer:** counts the raid down in raid warnings.
+- **Loot rules:** `/roll` is main spec, `/roll 99` is off spec; main spec first, then whoever
+  has won least tonight. One switch on the loot page.
+- **Invite word:** whoever whispers your word (default `inv`) is invited while there is room.
+- **Notes on players** that stay between sessions, on the applicant row and in the LFG feed.
 
 ## Posting on Forever
 
@@ -70,4 +74,4 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).  Current version: 3.1.1.
+MIT — see [LICENSE](LICENSE).  Current version: 3.2.0.

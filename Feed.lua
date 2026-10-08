@@ -326,6 +326,9 @@ function RR.RefreshFeedUI()
             row.kind:SetText(KIND_LABEL[entry.kind])
             row.kind:SetTextColor(color[1], color[2], color[3])
             row.name:SetText((entry.mate and RR.Hex(C.warn) .. "*|r " or "") .. entry.name)
+            -- a player you wrote a note on is gold: the note is in the tooltip
+            local nameColor = RR.GetNote(entry.name) and C.warn or C.text
+            row.name:SetTextColor(nameColor[1], nameColor[2], nameColor[3])
             row.what:SetText(entry.activity or "")
             -- one letter each, in its own colour and its own place
             row.roleTank:SetShown(entry.roles.tank and true or false)
@@ -601,6 +604,12 @@ function RR.FeedUI_Init()
                     0.5, 0.5, 0.5)
             end
             if entry.mate then GameTooltip:AddLine("Guild mate or friend", C.warn[1], C.warn[2], C.warn[3]) end
+            local note = RR.GetNote(entry.name)
+            if note then GameTooltip:AddLine("Note: " .. note, C.warn[1], C.warn[2], C.warn[3], true) end
+            local ever = RR.LeftEver(entry.name)
+            if ever > 0 then
+                GameTooltip:AddLine(string.format("Has left your groups %d time(s) in all", ever), 0.7, 0.5, 0.5)
+            end
             GameTooltip:Show()
         end)
         row:SetScript("OnLeave", function() GameTooltip:Hide() end)

@@ -2,7 +2,7 @@
 ## Title: Raid Recruiter
 ## Notes: Raid leader's window for WoW: Forever. LFG feed: who is posting LFG, LFM and trade in your channels, with whisper and invite buttons. Recruiting: your LFM message to the channels you pick, and everyone who whispers you in a sortable list with item level and role. Roles, class check, loot rolls with hand-out by master loot or trade, and a pull timer. /rr
 ## Author: Deniz
-## Version: 3.1.2
+## Version: 3.2.0
 ## SavedVariablesPerCharacter: RaidRecruiterDB
 
 Libs\LibStub\LibStub.lua
@@ -13,6 +13,7 @@ Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 Compat.lua
 Core.lua
 Applicants.lua
+Notes.lua
 Broadcast.lua
 Loot.lua
 LootBag.lua
