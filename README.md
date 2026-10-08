@@ -11,9 +11,12 @@ A World of Warcraft: Forever addon (interface 16001).
 One window for building and running a raid or a dungeon group, written for World of
 Warcraft: Forever and its addon rules. `/rr` opens it.
 
-- **LFG feed:** everyone posting LFG, LFM or trade in the channels you are in, newest
-  first: who, which dungeon or raid, which roles they ask for, the message, and Whisper and
-  Invite buttons. Filter by kind or search. Nothing is sent; it only reads chat.
+- **LFG feed:** everyone posting LFG, LFM, guild recruitment or trade in the channels you
+  are in: who, which dungeon or raid (classic and Forever's own), which roles they ask for,
+  the message. Filter by kind, by role (tank, healer, DPS) and by dungeons or raids; sort by
+  newest or by dungeon; search. Boost and carry ads are hidden by default. Whisper, Who and
+  Invite on every row; right-click hides a player for 30 minutes. Guild mates and friends are
+  starred and listed first; people on your ignore list never show. It only reads chat.
 - **Recruiting:** write your LFM message, tick the channels, set the interval. Everyone who
   whispers you lands in a sortable list with item level, level and role taken from what
   they wrote. Invite, whisper or remove from the row. Someone who joins and leaves comes
@@ -67,4 +70,4 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).  Current version: 3.0.0.
+MIT — see [LICENSE](LICENSE).  Current version: 3.1.0.
