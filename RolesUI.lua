@@ -236,12 +236,7 @@ function RR.RefreshRolesUI()
     end
 
     local counts = RR.GroupRoles()
-    summaryText:SetText(string.format("%d in group   %s%dT|r  %s%dH|r  %s%dD|r  %s%d?|r",
-        RR.GroupSize(),
-        RR.Hex(C.tank), counts.TANK,
-        RR.Hex(C.healer), counts.HEALER,
-        RR.Hex(C.dps), counts.DPS,
-        RR.Hex(C.textDim), counts.UNKNOWN))
+    summaryText:Set(RR.GroupSize() .. " in group", C.text, counts)
 end
 
 -- Build -----------------------------------------------------------------------
@@ -261,8 +256,8 @@ function RR.RolesUI_Init()
     local title = RR.UI_Heading(panel, "WHO IS WHAT")
     title:SetPoint("TOPLEFT", 10, -10)
 
-    summaryText = Label(panel, "", 11, C.text)
-    summaryText:SetPoint("TOPRIGHT", -12, -9)
+    summaryText = RR.UI_Counts(panel, 11)
+    summaryText:SetPoint("TOPRIGHT", -12, -7)
 
     hint = Label(panel, "Set a role here when somebody switches. What you set stays put -- "
         .. "a whisper from someone already in the group never changes it.", 10, C.textDim)

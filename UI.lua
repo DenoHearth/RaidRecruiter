@@ -293,7 +293,36 @@ local function Slider(parent, width, low, high, step)
     return slider
 end
 
+-- A group count such as "18/25  2T  4H  11D  1?". Every part is its own text, so every
+-- part keeps its own colour: tank orange, healer green, DPS red.
+local function Counts(parent, size)
+    local box = CreateFrame("Frame", nil, parent)
+    box:SetHeight(size + 4)
+    local order = { "lead", "tank", "heal", "dps", "unknown" }
+    local colors = { lead = C.text, tank = C.tank, heal = C.healer, dps = C.dps, unknown = C.textDim }
+    local parts, previous = {}, nil
+    for _, key in ipairs(order) do
+        local part = Label(box, "", size, colors[key])
+        if previous then part:SetPoint("LEFT", previous, "RIGHT", 8, 0) else part:SetPoint("LEFT") end
+        parts[key], previous = part, part
+    end
+    function box:Set(lead, leadColor, counts)
+        parts.lead:SetText(lead)
+        parts.lead:SetTextColor(leadColor[1], leadColor[2], leadColor[3])
+        parts.tank:SetText(counts.TANK .. "T")
+        parts.heal:SetText(counts.HEALER .. "H")
+        parts.dps:SetText(counts.DPS .. "D")
+        -- the question mark only appears when there is something to question
+        parts.unknown:SetText(counts.UNKNOWN > 0 and (counts.UNKNOWN .. "?") or "")
+        local width = 0
+        for _, key in ipairs(order) do width = width + parts[key]:GetStringWidth() + 8 end
+        self:SetWidth(math.max(width - 8, 1))
+    end
+    return box
+end
+
 -- Shared with the other pages so the whole window is built from the same widgets.
+RR.UI_Counts = Counts
 RR.UI_Backdrop = Backdrop
 RR.UI_Section = Section
 RR.UI_Inset = Inset
@@ -492,17 +521,7 @@ function RR.RefreshComposition()
     local size, cap = RR.GroupSize(), tonumber(RR.db.maxPlayers) or 25
     local sizeColor = size >= cap and C.good or C.text
 
-    local text = RR.Hex(sizeColor) .. size .. "/" .. cap .. "|r   "
-        .. RR.Hex(C.tank) .. counts.TANK .. "T|r  "
-        .. RR.Hex(C.healer) .. counts.HEALER .. "H|r  "
-        .. RR.Hex(C.dps) .. counts.DPS .. "D|r"
-
-    -- The question mark only appears when there is something to question.
-    if counts.UNKNOWN > 0 then
-        text = text .. "  " .. RR.Hex(C.textDim) .. counts.UNKNOWN .. "?|r"
-    end
-
-    compText:SetText(text)
+    compText:Set(size .. "/" .. cap, sizeColor, counts)
 
     -- The "Ask the missing" button carries the same number on its face, and the
     -- Roles page lists the same people.
@@ -708,9 +727,8 @@ local function BuildWindow()
 
     -- Composition lives in the title bar, not the footer: it is the one number
     -- you check before every invite, and up here it stays visible on both tabs.
-    compText = Label(header, "", 13, C.text)
+    compText = Counts(header, 13)
     compText:SetPoint("LEFT", 14, 0)
-    compText:SetJustifyH("LEFT")
 
     compFrame = CreateFrame("Frame", nil, header)
     compFrame:SetPoint("TOPLEFT", compText, "TOPLEFT", 0, 0)

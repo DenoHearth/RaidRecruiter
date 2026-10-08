@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.1.2 — 2026-10-08
+
+- Tank, healer and DPS letters and counts each keep their own colour (orange, green, red) in the LFG feed and in the group readouts
+
 ## v3.1.1 — 2026-10-08
 
 - LFG feed: hiding a player is now a Hide button on the row; a click on the row itself does nothing, so a slip cannot whisper or hide anybody
