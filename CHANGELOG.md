@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.1.0 — 2026-10-08
+
+- LFG feed: Forever's own dungeons and raids, Guild category, role and content filters, sort by dungeon, boost ads hidden, Who button, right-click hides a player for 30 minutes, guild mates and friends first
+
 ## v3.0.0 — 2026-10-08
 
 - Raid Recruiter 3.0 for World of Warcraft: Forever: new LFG feed page, new window design, role colours, posting by click or key (Forever blocks timed channel posts), leavers come off the applicant list until they whisper again
