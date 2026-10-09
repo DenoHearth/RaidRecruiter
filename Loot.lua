@@ -187,10 +187,11 @@ end
 
 RR.Announce = Announce
 
--- Loot rules (a switch on the loot page): main spec before off spec, and among equals
--- whoever has won least tonight. /roll (1-100) is main spec, /roll 99 (1-99) is off spec.
+-- Loot rules (a switch on the Options page, off until ticked): main spec before off spec,
+-- and among equals whoever has won least tonight. /roll (1-100) is main spec, /roll 99
+-- (1-99) is off spec. Off: the highest roll wins and nothing is counted.
 function RR.LootRulesOn()
-    return RR.db.lootRules ~= false
+    return RR.db.msRules == true
 end
 
 -- Main spec wins of this raid night: the count starts over after six hours without a win.

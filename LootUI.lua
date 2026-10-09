@@ -239,7 +239,11 @@ function RR.RefreshLootUI()
         rollTimerText:SetText("")
     end
 
-    if RR.lootRulesCheck then RR.lootRulesCheck:SetChecked(RR.LootRulesOn()) end
+    if RR.lootRulesHint then
+        local on = RR.LootRulesOn()
+        RR.lootRulesHint:SetShown(on)
+        RR.lootResetWins:SetShown(on)
+    end
 
     local results = roll and RR.RollResults() or {}
     local winners, tied, contested = {}, {}, 0
@@ -580,14 +584,7 @@ function RR.LootUI_Init()
         rollRows[i] = row
     end
 
-    -- the loot rules, and the count they keep
-    local rulesCheck = RR.UI_CheckBox(right, "Main spec first, then fewest wins tonight")
-    rulesCheck:SetPoint("BOTTOMLEFT", 8, 44)
-    rulesCheck:SetScript("OnClick", function(self)
-        RR.db.lootRules = self:GetChecked() and true or false
-        RR.RefreshLootUI()
-    end)
-    RR.lootRulesCheck = rulesCheck
+    -- the loot rules (switched on the Options page): what they ask for, and the count they keep
     local resetWins = Button(right, "Reset wins", 80, 20)
     resetWins:SetPoint("BOTTOMRIGHT", -10, 44)
     resetWins:SetScript("OnClick", function()
@@ -596,7 +593,9 @@ function RR.LootUI_Init()
         RR.RefreshLootUI()
     end)
     local rulesHint = Label(right, "/roll = main spec,  /roll 99 = off spec.  A main spec win counts as +1.", 10, C.textDim)
-    rulesHint:SetPoint("BOTTOMLEFT", 12, 70)
+    rulesHint:SetPoint("BOTTOMLEFT", 12, 48)
+    RR.lootRulesHint = rulesHint
+    RR.lootResetWins = resetWins
 
     assignButton = Button(right, "Give to winner", 150, 24)
     assignButton:SetPoint("BOTTOMLEFT", 10, 10)

@@ -795,13 +795,15 @@ local function BuildWindow()
         if name == "roles" and RR.RefreshRolesUI then RR.RefreshRolesUI() end
         if name == "recruit" then RR.RefreshList() end
         if name == "feed" and RR.RefreshFeedUI then RR.RefreshFeedUI() end
+        if name == "options" and RR.LoadOptionsWidgets then RR.LoadOptionsWidgets() end
     end
     RR.SelectPage = SelectPage
 
     -- in the order a raid goes: see who is looking, recruit, sort the roles, hand out the loot
-    local tabDefs = { { "feed", "LFG feed" }, { "recruit", "Recruiting" }, { "roles", "Roles" }, { "loot", "Loot rolls" } }
+    local tabDefs = { { "feed", "LFG feed" }, { "recruit", "Recruiting" }, { "roles", "Roles" }, { "loot", "Loot rolls" },
+                      { "options", "Options" } }
     for i, def in ipairs(tabDefs) do
-        local tab = Tab(window, def[2], 96)
+        local tab = Tab(window, def[2], 90)
         if i == 1 then
             tab:SetPoint("TOPLEFT", 10, -(HEADER_H + 2))
         else
@@ -1108,21 +1110,6 @@ local function BuildWindow()
         RR.db.fullReply = self:GetText() or ""
     end)
 
-    local wordCheck = CheckBox(left, "Invite on the whisper word")
-    wordCheck:SetPoint("TOPLEFT", replyLabel, "BOTTOMLEFT", -4, -8)
-    wordCheck:SetScript("OnClick", function(self)
-        RR.db.inviteWordEnabled = self:GetChecked() and true or false
-    end)
-    local wordBox = EditBox(left, 60, 18)
-    wordBox:SetPoint("LEFT", wordCheck.label, "RIGHT", 6, 0)
-    wordBox:SetMaxLetters(20)
-    wordBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
-    wordBox:SetScript("OnTextChanged", function(self)
-        RR.db.inviteWord = string.lower(strtrim(self:GetText() or ""))
-    end)
-    window.wordCheck = wordCheck
-    window.wordBox = wordBox
-
     startButton = Button(left, "Start posting", LEFT_W - 20, 30)
     startButton:SetPoint("BOTTOMLEFT", 10, 30)
     startButton:SetColor(C.good)
@@ -1386,10 +1373,9 @@ local function LoadWidgets()
     window.capCheck:SetChecked(db.fullReplyEnabled and true or false)
     capBox:SetText(tostring(db.maxPlayers or 25))
     replyBox:SetText(db.fullReply or "")
-    window.wordCheck:SetChecked(db.inviteWordEnabled and true or false)
-    window.wordBox:SetText(db.inviteWord or "inv")
 
     if RR.LoadLootWidgets then RR.LoadLootWidgets() end
+    if RR.LoadOptionsWidgets then RR.LoadOptionsWidgets() end
 
     RR.RefreshFilters()
     RefreshChannels()
@@ -1471,6 +1457,7 @@ function RR.UI_Init()
     if RR.LootUI_Init then RR.LootUI_Init() end
     if RR.RolesUI_Init then RR.RolesUI_Init() end
     if RR.FeedUI_Init then RR.FeedUI_Init() end
+    if RR.OptionsUI_Init then RR.OptionsUI_Init() end
     SetupMinimapButton()
     RR.SelectPage(RR.db.page or "recruit")
 end

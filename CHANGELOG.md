@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.3.0 — 2026-10-09
+
+- New Options page. The main spec / off spec loot rules (MS +1) are a choice now and off until you tick them there; without them the highest roll wins. The invite word moved to the same page
+
 ## v3.2.0 — 2026-10-08
 
 - Loot rules: /roll is main spec, /roll 99 is off spec, main spec first and then fewest wins tonight; invite on a whisper word; notes on players that stay between sessions

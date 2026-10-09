@@ -88,7 +88,7 @@ RR.defaults = {
     minimap = { hide = false },
     page = "recruit",
     rollSeconds = 15,       -- how long a loot roll stays open, announced in /rw
-    lootRules = true,       -- main spec (/roll) before off spec (/roll 99), fewest wins tonight first
+    msRules = false,        -- Options page: main spec (/roll) before off spec (/roll 99), fewest wins tonight first
     inviteWordEnabled = false,
     inviteWord = "inv",     -- a whisper that is this word gets an invite while there is room
     rollCountdownFrom = 5,  -- start the 5,4,3,2,1 countdown at this many left
@@ -347,6 +347,10 @@ loader:SetScript("OnEvent", function(self, event, arg1)
                 end
             end
         end
+
+        -- 3.2 had the loot rules on from the start, under this key. They are a choice now
+        -- (msRules, off until ticked), so the old answer is not carried over.
+        RR.db.lootRules = nil
 
         if RR.Applicants_Init then RR.Applicants_Init() end
         if RR.Broadcast_Init then RR.Broadcast_Init() end
