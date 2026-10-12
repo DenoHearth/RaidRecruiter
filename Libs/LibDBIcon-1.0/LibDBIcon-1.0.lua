@@ -158,7 +158,8 @@ do
 		local x, y, q = cos(angle), sin(angle), 1
 		if x < 0 then q = q + 1 end
 		if y > 0 then q = q + 2 end
-		local minimapShape = GetMinimapShape and GetMinimapShape() or "ROUND"
+		local shapeOf = _G.GetMinimapShape -- not a client function: an addon that reshapes the minimap defines it
+		local minimapShape = shapeOf and shapeOf() or "ROUND"
 		local quadTable = minimapShapes[minimapShape]
 		local w = (Minimap:GetWidth() / 2) + lib.radius
 		local h = (Minimap:GetHeight() / 2) + lib.radius

@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.4.0 — 2026-10-12
+
+- **Raid lead**, a sixth page: everything a raid leader presses, as buttons. Ready check with its result (how many are ready, who is not, a Whisper button), pull timers (10, 15, a five minute break, stop), role check, the eight marks for your target, loot method and threshold with an Announce button, the groups with three sorts (a tank and a healer per group, melee and ranged apart, by class), Undo and Convert to raid, and a raid check for flask, food, Fortitude, Intellect and Mark of the Wild
+- **Raid bar**: a small bar that is on screen while you lead or assist a group: Ready, Pull (Stop while it counts, with the seconds), the eight target marks, and the eight marks on the ground. It can be dragged, and switched off on the Raid lead page
+- **After a ready check** that not everyone answered, a list comes up: who is not ready, who did not answer, a Whisper button each
+- **Announce** says the loot method and threshold as they are set. Main spec before off spec and +1 are named only when that rule is ticked on the Options page; it is not a standard
+- Marks on the ground are on the bar only: the game lets only a protected button place them, and one inside the window would stop the window from opening in a fight
+
+Not yet tried in a real raid: the group sorts and the raid check. The raid check works out of combat only, and a player whose buffs the game hides is counted as not read, never as missing something.
+
 ## v3.3.0 — 2026-10-09
 
 - New Options page. The main spec / off spec loot rules (MS +1) are a choice now and off until you tick them there; without them the highest roll wins. The invite word moved to the same page

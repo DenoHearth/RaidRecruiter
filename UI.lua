@@ -796,14 +796,15 @@ local function BuildWindow()
         if name == "recruit" then RR.RefreshList() end
         if name == "feed" and RR.RefreshFeedUI then RR.RefreshFeedUI() end
         if name == "options" and RR.LoadOptionsWidgets then RR.LoadOptionsWidgets() end
+        if name == "lead" and RR.RefreshRaidLead then RR.RefreshRaidLead() end
     end
     RR.SelectPage = SelectPage
 
     -- in the order a raid goes: see who is looking, recruit, sort the roles, hand out the loot
     local tabDefs = { { "feed", "LFG feed" }, { "recruit", "Recruiting" }, { "roles", "Roles" }, { "loot", "Loot rolls" },
-                      { "options", "Options" } }
+                      { "lead", "Raid lead" }, { "options", "Options" } }
     for i, def in ipairs(tabDefs) do
-        local tab = Tab(window, def[2], 90)
+        local tab = Tab(window, def[2], 76)      -- six tabs have to end before the Class check button
         if i == 1 then
             tab:SetPoint("TOPLEFT", 10, -(HEADER_H + 2))
         else
@@ -1457,7 +1458,9 @@ function RR.UI_Init()
     if RR.LootUI_Init then RR.LootUI_Init() end
     if RR.RolesUI_Init then RR.RolesUI_Init() end
     if RR.FeedUI_Init then RR.FeedUI_Init() end
+    if RR.RaidLeadUI_Init then RR.RaidLeadUI_Init() end
     if RR.OptionsUI_Init then RR.OptionsUI_Init() end
+    if RR.RaidBar_Init then RR.RaidBar_Init() end
     SetupMinimapButton()
     RR.SelectPage(RR.db.page or "recruit")
 end
