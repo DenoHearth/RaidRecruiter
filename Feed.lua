@@ -133,13 +133,32 @@ local function Plain(message)
     return " " .. string.lower(text) .. " "
 end
 
+-- A group asking for a role: an ask word, then the role a few words later ("need 2 dps",
+-- "seek 2 DPS SFK", "looking for a healer", "lf tank").
+local ASK_WORDS = { "need", "needs", "needed", "seek", "seeks", "seeking", "searching", "search", "looking for",
+    "lf", "want", "wanted" }
+local ROLE_WORDS = { "tank", "heal", "dps", "dd", "damage" }
+local MAX_ASK_GAP = 12
+
+local function AsksForRole(text)
+    for _, ask in ipairs(ASK_WORDS) do
+        for _, role in ipairs(ROLE_WORDS) do
+            local pattern = "%f[%w]" .. ask .. "%f[%W]([%w%s%+]-)%f[%w]" .. role
+            local start, _, gap = string.find(text, pattern)
+            while start do
+                if #gap <= MAX_ASK_GAP then return true end
+                start, _, gap = string.find(text, pattern, start + 1)
+            end
+        end
+    end
+    return false
+end
+
 -- kind, roles, activity. No kind: an ordinary chat line, not kept.
 local function Classify(message)
     local text = Plain(message)
     local asksGroup = HasWord(text, "lfm") or string.find(text, "%f[%w]lf%d+m%f[%W]") or string.find(text, "%f[%w]lf %d+")
-        or string.find(text, "looking for more") or string.find(text, "need %a* ?tank")
-        or string.find(text, "need %a* ?heal") or string.find(text, "need %a* ?dps")
-        or HasAny(text, { "lf tank", "lf healer", "lf heal", "lf heals", "lf dps" })
+        or string.find(text, "looking for more") or AsksForRole(text)
     local kind
     if HasAny(text, BOOST_WORDS) then
         kind = "boost"
@@ -150,7 +169,8 @@ local function Classify(message)
         kind = "trade"
     elseif asksGroup then
         kind = "lfm"
-    elseif HasWord(text, "lfg") or string.find(text, "looking for group") or HasWord(text, "lf group") then
+    elseif HasWord(text, "lfg") or string.find(text, "looking for group") or HasWord(text, "lf group")
+        or string.find(text, "%f[%w]seek%a* %a* ?group") then
         kind = "lfg"
     end
     if not kind then return nil end

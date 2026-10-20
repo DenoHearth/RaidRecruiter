@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.4.1 — 2026-10-20
+
+- **LFG feed** knows more ways of asking for a role: "seek", "seeking", "searching", "looking for", "want" and "need" followed by the role a few words later ("Seek 2 DPS SFK", "need 2 dps", "looking for a healer"). A number before the role no longer hides the post. "Seeking group" counts as LFG
+
 ## v3.4.0 — 2026-10-12
 
 - **Raid lead**, a sixth page: everything a raid leader presses, as buttons. Ready check with its result (how many are ready, who is not, a Whisper button), pull timers (10, 15, a five minute break, stop), role check, the eight marks for your target, loot method and threshold with an Announce button, the groups with three sorts (a tank and a healer per group, melee and ranged apart, by class), Undo and Convert to raid, and a raid check for flask, food, Fortitude, Intellect and Mark of the Wild
