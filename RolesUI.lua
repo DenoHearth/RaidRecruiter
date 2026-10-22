@@ -272,7 +272,7 @@ function RR.RolesUI_Init()
     rescan:SetPoint("TOPRIGHT", -12, -28)
     rescan:SetScript("OnClick", function()
         if not RR.QueueIlvlGroup then
-            RR.Print("this needs a full client restart -- /reload does not pick up a new file.")
+            RR.Notice("This needs a full game restart. A reload does not load a new file.")
             return
         end
         RR.QueueIlvlGroup(true)

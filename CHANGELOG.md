@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.4.2 — 2026-10-23
+
+- The notice that a half-updated install needs a full game restart now comes as a small window with an Okay button, instead of a line in chat
+
 ## v3.4.1 — 2026-10-20
 
 - **LFG feed** knows more ways of asking for a role: "seek", "seeking", "searching", "looking for", "want" and "need" followed by the role a few words later ("Seek 2 DPS SFK", "need 2 dps", "looking for a healer"). A number before the role no longer hides the post. "Seeking group" counts as LFG

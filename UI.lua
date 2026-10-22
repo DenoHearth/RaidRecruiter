@@ -833,7 +833,7 @@ local function BuildWindow()
         -- that only reloaded its UI still has the old .toc: the button exists
         -- and the module behind it does not. Say so instead of erroring.
         if not RR.ToggleRoleCall then
-            RR.Print("class check needs a full client restart -- /reload does not pick up a new file.")
+            RR.Notice("The class check needs a full game restart. A reload does not load a new file.")
             return
         end
         RR.ToggleRoleCall()
@@ -868,7 +868,7 @@ local function BuildWindow()
     chaseButton:SetPoint("LEFT", roleCallButton, "RIGHT", 6, 0)
     chaseButton:SetScript("OnClick", function()
         if not RR.ToggleChase then
-            RR.Print("this needs a full client restart -- /reload does not pick up a new file.")
+            RR.Notice("This needs a full game restart. A reload does not load a new file.")
             return
         end
         RR.ToggleChase()
@@ -907,7 +907,7 @@ local function BuildWindow()
     pullButton:SetPoint("LEFT", chaseButton, "RIGHT", 6, 0)
     pullButton:SetScript("OnClick", function()
         if not RR.TogglePull then
-            RR.Print("this needs a full client restart -- /reload does not pick up a new file.")
+            RR.Notice("This needs a full game restart. A reload does not load a new file.")
             return
         end
         RR.TogglePull()

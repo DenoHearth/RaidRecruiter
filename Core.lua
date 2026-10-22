@@ -10,6 +10,7 @@
 -- stranger into the raid.
 
 local ADDON_NAME, RR = ...
+RR.TITLE = "Raid Recruiter"
 
 _G.RaidRecruiter = RR
 
