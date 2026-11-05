@@ -136,8 +136,10 @@ local function PaintButton(button)
     button.text:SetTextColor(text[1], text[2], text[3])
 end
 
-local function Button(parent, text, width, height)
-    local button = CreateFrame("Button", nil, parent)
+-- `template` is for the raid bar's buttons that must be the game's own secure button
+-- (SecureActionButtonTemplate): same look, but the click is the game's.
+local function Button(parent, text, width, height, template)
+    local button = CreateFrame("Button", nil, parent, template)
     button:SetWidth(width)
     button:SetHeight(height)
     Backdrop(button, C.accentDim[1], C.accentDim[2], C.accentDim[3], 1, 1)

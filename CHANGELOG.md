@@ -1,5 +1,13 @@
 # Changelog
 
+## v3.4.3 — 2026-11-05
+
+- Fixed: the raid bar's target marks and its X gave "RaidRecruiter was forbidden from calling SetRaidTarget()", and Ready gave "blocked from calling UNKNOWN()". Forever only lets the game's own buttons do these; Ready, the eight marks and Clear are now such buttons
+- The red X on the raid bar is now "Clear" (it takes the mark off your target; it never closed the bar)
+- New: a Hide button on the raid bar. It comes back with "Show the raid bar while I lead" on the Raid lead page
+- The eight ground marks are one even colour each, the mark's own, instead of a dark fill with a bright line along the bottom
+- Every raid bar button has a tooltip
+
 ## v3.4.2 — 2026-10-23
 
 - The notice that a half-updated install needs a full game restart now comes as a small window with an Okay button, instead of a line in chat

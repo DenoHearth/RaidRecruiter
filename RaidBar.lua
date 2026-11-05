@@ -2,12 +2,17 @@
 --
 --   Ready      ready check
 --   Pull 10    countdown (Pull.lua); the button is STOP while it runs
---   eight marks for the target, X clears the mark
---   second row: the eight marks on the ground (click, then click the floor; again to remove)
+--   eight marks for the target, Clear takes the mark off
+--   second row: the eight marks on the ground (click, then click the floor; again to remove),
+--   and Hide, which switches the bar off (back on: Raid lead page, "Show the raid bar while I lead")
 --
--- The ground marks are the reason for the care below: the game lets only a protected button
--- place them. With protected buttons inside it the bar is protected too, so it is shown, hidden
--- and moved only outside a fight; a change that comes during one waits for its end.
+-- On live Forever the game refuses SetRaidTarget, PlaceRaidMarker and DoReadyCheck from addon
+-- code (his report 2026-11-05: "forbidden from calling SetRaidTarget()", "blocked from calling
+-- UNKNOWN()"; the client's API documentation marks all three HasRestrictions). So Ready, the
+-- marks, Clear and the ground marks are the game's own secure buttons: a click on them runs the
+-- game's code (SecureTemplates.lua: macro "/readycheck", raidtarget, worldmarker), not ours.
+-- With protected buttons inside it the bar is protected too, so it is shown, hidden and moved
+-- only outside a fight; a change that comes during one waits for its end.
 --
 -- After a ready check that not everyone answered, a small list comes up: who, and a Whisper
 -- button each.
@@ -19,6 +24,26 @@ local ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
 -- the game's order of the ground marks: square, triangle, diamond, cross, star, circle, moon, skull
 local GROUND = { { 0.25, 0.55, 1 }, { 0.25, 0.85, 0.35 }, { 0.75, 0.35, 0.95 }, { 0.95, 0.25, 0.25 },
                  { 1, 0.9, 0.2 }, { 1, 0.55, 0.15 }, { 0.8, 0.85, 0.9 }, { 0.95, 0.95, 0.95 } }
+local GROUND_NAMES = { "Square", "Triangle", "Diamond", "Cross", "Star", "Circle", "Moon", "Skull" }
+local TARGET_NAMES = { "Star", "Circle", "Diamond", "Triangle", "Moon", "Square", "Cross", "Skull" }
+
+local function Tooltip(button, title, text)
+    button:HookScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine(title, 1, 1, 1)
+        if text then GameTooltip:AddLine(text, 0.8, 0.8, 0.8, true) end
+        GameTooltip:Show()
+    end)
+    button:HookScript("OnLeave", function() GameTooltip:Hide() end)
+end
+
+-- One of the game's secure buttons: the click runs the action the attributes name, in the game's
+-- own code. Attributes are set here, once, before the bar is ever shown (never in a fight).
+local function Secure(button, attributes)
+    button:RegisterForClicks("AnyUp", "AnyDown")
+    for key, value in pairs(attributes) do button:SetAttribute(key, value) end
+    return button
+end
 
 local bar, pullButton, countdown, result
 local pending = false
@@ -138,10 +163,12 @@ function RR.RaidBar_Init()
         RR.db.barPoint = { point, x, y }
     end)
 
-    local readyButton = B(bar, "Ready", 64, 30)
+    -- the game's own /readycheck (it asks for leader or assistant itself)
+    local readyButton = Secure(B(bar, "Ready", 64, 30, "SecureActionButtonTemplate"),
+        { type = "macro", macrotext = SLASH_READYCHECK1 or "/readycheck" })
     readyButton:SetPoint("TOPLEFT", 6, -6)
     readyButton:SetColor(C.accent)
-    readyButton:SetScript("OnClick", function() RR.StartReadyCheck() end)
+    Tooltip(readyButton, "Ready check", "Asks the group whether everyone is ready.")
 
     pullButton = B(bar, "Pull 10", 64, 30)
     pullButton:SetPoint("LEFT", readyButton, "RIGHT", 4, 0)
@@ -151,19 +178,21 @@ function RR.RaidBar_Init()
 
     local first
     for i = 1, 8 do
-        local mark = B(bar, "", 30, 30)
+        local mark = Secure(B(bar, "", 30, 30, "SecureActionButtonTemplate"),
+            { type = "raidtarget", unit = "target", marker = i, action = "set" })
         mark:SetPoint("TOPLEFT", 144 + (i - 1) * 32, -6)
-        mark:SetScript("OnClick", function() SetRaidTarget("target", i) end)
         local icon = mark:CreateTexture(nil, "ARTWORK")
         icon:SetPoint("TOPLEFT", 3, -3)
         icon:SetPoint("BOTTOMRIGHT", -3, 3)
         icon:SetTexture(ICON .. i)
+        Tooltip(mark, TARGET_NAMES[i], "Puts this mark on your target.")
         first = first or mark
     end
-    local clear = B(bar, "X", 38, 30)
+    -- "Clear", not an X: an X reads as "close the bar" (his report, 2026-11-05)
+    local clear = Secure(B(bar, "Clear", 38, 30, "SecureActionButtonTemplate"),
+        { type = "raidtarget", unit = "target", action = "clear" })
     clear:SetPoint("TOPLEFT", 404, -6)
-    clear:SetColor(C.bad)
-    clear:SetScript("OnClick", function() SetRaidTarget("target", 0) end)
+    Tooltip(clear, "Clear mark", "Takes the mark off your target.")
 
     -- the countdown lies over the marks while it runs
     countdown = CreateFrame("Frame", nil, bar)
@@ -179,23 +208,39 @@ function RR.RaidBar_Init()
     local groundLabel = RR.UI_Label(bar, "On the ground", 10, C.textDim)
     groundLabel:SetPoint("TOPLEFT", 8, -50)
     for i = 1, 8 do
-        local button = CreateFrame("Button", "RaidRecruiterGround" .. i, bar, "SecureActionButtonTemplate")
+        local button = Secure(CreateFrame("Button", "RaidRecruiterGround" .. i, bar, "SecureActionButtonTemplate"),
+            { type = "worldmarker", marker = i, action = "toggle" })
         button:SetSize(30, 22)
         button:SetPoint("TOPLEFT", 144 + (i - 1) * 32, -44)
-        button:RegisterForClicks("AnyDown", "AnyUp")
-        button:SetAttribute("type", "worldmarker")
-        button:SetAttribute("marker", i)
-        button:SetAttribute("action", "toggle")
+        -- One even colour, the mark's own, inside the same thin frame as the other buttons. Until
+        -- 3.4.3 it was a dark fill with a bright line along the bottom (his words, 2026-11-05: "they
+        -- are darker and whiter at the bottom").
         local colour = GROUND[i]
-        local fill = button:CreateTexture(nil, "BACKGROUND")
-        fill:SetAllPoints()
-        fill:SetColorTexture(colour[1] * 0.4, colour[2] * 0.4, colour[3] * 0.4, 1)
-        local edge = button:CreateTexture(nil, "BORDER")
-        edge:SetPoint("BOTTOMLEFT")
-        edge:SetPoint("BOTTOMRIGHT")
-        edge:SetHeight(2)
-        edge:SetColorTexture(colour[1], colour[2], colour[3], 1)
+        local frame = button:CreateTexture(nil, "BACKGROUND")
+        frame:SetAllPoints()
+        frame:SetColorTexture(C.line[1], C.line[2], C.line[3], 1)
+        local fill = button:CreateTexture(nil, "BORDER")
+        fill:SetPoint("TOPLEFT", 1, -1)
+        fill:SetPoint("BOTTOMRIGHT", -1, 1)
+        fill:SetColorTexture(colour[1], colour[2], colour[3], 0.85)
+        local hover = button:CreateTexture(nil, "HIGHLIGHT")
+        hover:SetPoint("TOPLEFT", 1, -1)
+        hover:SetPoint("BOTTOMRIGHT", -1, 1)
+        hover:SetColorTexture(1, 1, 1, 0.2)
+        Tooltip(button, GROUND_NAMES[i] .. " on the ground",
+            "Click, then click the ground where it goes. Click again to take it away.")
     end
+
+    -- Hide: the bar's own way off (his report 2026-11-05: he looked for one and pressed the old X)
+    local hide = B(bar, "Hide", 38, 22)
+    hide:SetPoint("TOPLEFT", 404, -44)
+    hide:SetScript("OnClick", function()
+        RR.db.barShown = false
+        if InCombatLockdown() then RR.Print("the raid bar hides when the fight ends.") end
+        RR.RaidBar_Update()
+    end)
+    Tooltip(hide, "Hide the raid bar",
+        "Brings it back: /rr, Raid lead page, tick \"Show the raid bar while I lead\".")
 
     -- Pull.lua calls this on every tick; the window has its own readout, the bar adds its own
     local windowRefresh = RR.RefreshPullUI
