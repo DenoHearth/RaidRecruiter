@@ -363,7 +363,8 @@ function RR.TradeTo(name, link)
     if not unit then
         return false, string.format("%s is not in range -- target them and press this again", name)
     end
-    if type(CheckInteractDistance) == "function" then
+    -- blocked in a fight on live Forever (see Ilvl.lua); trading is not possible then anyway
+    if type(CheckInteractDistance) == "function" and not InCombatLockdown() then
         local okDist, close = pcall(CheckInteractDistance, unit, 2)
         if okDist and not close then
             return false, string.format("%s is too far away to trade", name)

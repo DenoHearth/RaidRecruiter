@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.4.5 — 2026-11-05
+
+- No more "RaidRecruiter was blocked from calling UNKNOWN()" in fights. The item level reader checked inspect range with `CheckInteractDistance`, which live Forever blocks in combat; it now waits for the fight to end. The trade range check skips it in a fight too.
+
 ## v3.4.4 — 2026-11-05
 
 - Fixed: Ready check, the eight target marks and Clear on the Raid lead page gave the same "forbidden" and "blocked" errors as the raid bar. They are now the game's own buttons too, laid over the page, so the window itself still opens, closes and moves in a fight

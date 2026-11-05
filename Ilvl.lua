@@ -61,7 +61,9 @@ local function Readable(unit)
         local ok, allowed = pcall(CanInspect, unit)
         if ok and not allowed then return false end
     end
-    if type(CheckInteractDistance) == "function" then
+    -- CheckInteractDistance is blocked in a fight on live Forever (taint.log 2026-11-05:
+    -- "An action was blocked in combat because of taint from RaidRecruiter", Readable()).
+    if type(CheckInteractDistance) == "function" and not InCombatLockdown() then
         -- 1 is the inspect range, the same one the right-click menu greys out.
         local ok, close = pcall(CheckInteractDistance, unit, 1)
         if ok and not close then return false end
@@ -235,6 +237,7 @@ end
 
 local function SendNext()
     if pending or #queue == 0 then return end
+    if InCombatLockdown() then return end   -- no inspecting in a fight: the queue waits for its end
     if InspectWindowOpen() then return end
     if type(NotifyInspect) ~= "function" then return end
     if GetTime() - lastRequest < REQUEST_GAP then return end
