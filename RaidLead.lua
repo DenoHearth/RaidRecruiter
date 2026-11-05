@@ -8,6 +8,13 @@
 -- protected button inside this window would stop the window from opening in a fight. They are
 -- on the raid bar (RaidBar.lua).
 --
+-- Ready check and the marks on the target (3.4.4): live Forever refuses SetRaidTarget and
+-- DoReadyCheck from addon code (his report 2026-11-05), so the working buttons are the game's
+-- own secure buttons. They sit in a frame of their own on UIParent, laid exactly over the
+-- page's buttons, never inside the window, so the window still opens, closes and moves in a
+-- fight. In a fight that frame hides itself (secure snippet); the page's own buttons under it
+-- then only say to use the raid bar, which keeps working in fights.
+--
 -- Untested with a real raid (2026-10-12): the group sorts and the raid check. The functions
 -- they call exist on the client; how the server answers a run of group moves, and whether other
 -- players' buffs can be read out of combat, has to be seen in a raid.
@@ -139,11 +146,6 @@ local function OnReadyEvent(_, event, a, b)
         if RR.RaidBar_ShowReadyResult then RR.RaidBar_ShowReadyResult() end
     end
     RefreshReady()
-end
-
-function RR.StartReadyCheck()
-    if not IsInGroup() then RR.Print("ready check: you are not in a group.") return end
-    DoReadyCheck()
 end
 
 -- A whisper to a player who was not ready. One chat line per click is all the game allows an
@@ -469,6 +471,90 @@ local function Place(button, parent, x, y, onClick)
     return button
 end
 
+-- ------------------------------------------------------------------ the secure layer
+
+local TARGET_NAMES = { "Star", "Circle", "Diamond", "Triangle", "Moon", "Square", "Cross", "Skull" }
+
+local function Tooltip(button, title, text)
+    button:HookScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine(title, 1, 1, 1)
+        GameTooltip:AddLine(text, 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    button:HookScript("OnLeave", function() GameTooltip:Hide() end)
+end
+
+-- The working Ready check, marks and Clear: the game's secure buttons in a layer on UIParent,
+-- each laid over the page button it stands for. Shown only while the page is on screen, the
+-- window is not being dragged, and no fight is on; moved and shown by our code out of a fight
+-- only, hidden at the start of a fight by the game's own code (the state snippet).
+local function SecureOverlay(resting)
+    local window = page:GetParent()
+    local layer = CreateFrame("Frame", "RaidRecruiterLeadButtons", UIParent, "SecureHandlerStateTemplate")
+    layer:SetFrameStrata("FULLSCREEN")   -- above the window, which raises itself when clicked
+    layer:SetSize(1, 1)
+    layer:Hide()
+    layer:SetAttribute("_onstate-fight", [[ if newstate == "on" then self:Hide() end ]])
+    RegisterStateDriver(layer, "fight", "[combat] on; off")
+
+    local laid = {}
+    local function Make(rest, text, attributes, title, tip, icon)
+        local button = RR.UI_Button(layer, text, rest:GetWidth(), rest:GetHeight(), "SecureActionButtonTemplate")
+        button:RegisterForClicks("AnyUp", "AnyDown")
+        for key, value in pairs(attributes) do button:SetAttribute(key, value) end
+        if rest.baseColor then button:SetColor(rest.baseColor) end
+        if icon then
+            local texture = button:CreateTexture(nil, "ARTWORK")
+            texture:SetPoint("TOPLEFT", 4, -4)
+            texture:SetPoint("BOTTOMRIGHT", -4, 4)
+            texture:SetTexture(icon)
+        end
+        Tooltip(button, title, tip)
+        laid[#laid + 1] = { button = button, over = rest }
+    end
+    Make(resting.ready, "Ready check", { type = "macro", macrotext = SLASH_READYCHECK1 or "/readycheck" },
+        "Ready check", "Asks the group whether everyone is ready.")
+    for i = 1, 8 do
+        Make(resting.marks[i], "", { type = "raidtarget", unit = "target", marker = i, action = "set" },
+            TARGET_NAMES[i], "Puts this mark on your target.", ICON .. i)
+    end
+    Make(resting.clear, "Clear", { type = "raidtarget", unit = "target", action = "clear" },
+        "Clear mark", "Takes the mark off your target.")
+
+    -- Page and layer share UIParent's scale (the window has none of its own), so the page's
+    -- screen position is the layer's offset from UIParent's bottom left.
+    local function Lay()
+        local left, top = page:GetLeft(), page:GetTop()
+        if not left or not top then return false end
+        layer:ClearAllPoints()
+        layer:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+        for _, entry in ipairs(laid) do
+            local x, y = entry.over:GetLeft(), entry.over:GetTop()
+            if not x or not y then return false end
+            entry.button:ClearAllPoints()
+            entry.button:SetPoint("TOPLEFT", layer, "TOPLEFT", x - left, y - top)
+        end
+        return true
+    end
+
+    local dragging = false
+    local function Update()
+        if InCombatLockdown() then return end
+        if page:IsVisible() and not dragging and Lay() then layer:Show() else layer:Hide() end
+    end
+    page:HookScript("OnShow", function()
+        Update()
+        C_Timer.After(0, Update)   -- once more a frame later, when a freshly opened window has its place
+    end)
+    page:HookScript("OnHide", Update)
+    window:HookScript("OnDragStart", function() dragging = true Update() end)
+    window:HookScript("OnDragStop", function() dragging = false Update() end)
+    local watcher = CreateFrame("Frame")
+    watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+    watcher:SetScript("OnEvent", Update)
+end
+
 function RR.RaidLeadUI_Init()
     if not RR.NewPage then return end
     page = RR.NewPage("lead")
@@ -476,7 +562,14 @@ function RR.RaidLeadUI_Init()
 
     -- before the pull
     local pull = Box(page, 10, 10, 810, 96, "BEFORE THE PULL")
-    Place(B(pull, "Ready check", 150, 30), pull, 10, 30, RR.StartReadyCheck):SetColor(C.accent)
+    -- the page's own Ready check and marks only show the place: the working buttons lie over
+    -- them (SecureOverlay below); these answer only while that layer rests in a fight
+    local resting = {}
+    local function Resting()
+        RR.Print("in a fight this button rests: use the raid bar, its marks and Ready work in fights.")
+    end
+    resting.ready = Place(B(pull, "Ready check", 150, 30), pull, 10, 30, Resting)
+    resting.ready:SetColor(C.accent)
     Place(B(pull, "Pull in 10", 104, 30), pull, 168, 30, function() RR.StartPull(10) end)
     Place(B(pull, "Pull in 15", 104, 30), pull, 278, 30, function() RR.StartPull(15) end)
     Place(B(pull, "Break 5 min", 104, 30), pull, 388, 30, function() RR.StartPull(300) end)
@@ -494,16 +587,19 @@ function RR.RaidLeadUI_Init()
     local marks = Box(page, 10, 114, 400, 116, "MARKERS")
     local onTarget = L(marks, "On your target", 11, C.textDim)
     onTarget:SetPoint("TOPLEFT", 10, -32)
+    resting.marks = {}
     for i = 1, 8 do
-        local button = Place(B(marks, "", 32, 32), marks, 10 + (i - 1) * 36, 50, function() SetRaidTarget("target", i) end)
+        local button = Place(B(marks, "", 32, 32), marks, 10 + (i - 1) * 36, 50, Resting)
         local icon = button:CreateTexture(nil, "ARTWORK")
         icon:SetPoint("TOPLEFT", 4, -4)
         icon:SetPoint("BOTTOMRIGHT", -4, 4)
         icon:SetTexture(ICON .. i)
+        resting.marks[i] = button
     end
-    Place(B(marks, "Clear", 82, 26), marks, 306, 53, function() SetRaidTarget("target", 0) end)
-    local ground = L(marks, "Marks on the ground are on the raid bar (the game allows them only there).", 10, C.textDim)
+    resting.clear = Place(B(marks, "Clear", 82, 26), marks, 306, 53, Resting)
+    local ground = L(marks, "In a fight use the raid bar. Marks on the ground are on the raid bar only.", 10, C.textDim)
     ground:SetPoint("TOPLEFT", 10, -92)
+    SecureOverlay(resting)
 
     -- loot
     local loot = Box(page, 420, 114, 400, 116, "LOOT")

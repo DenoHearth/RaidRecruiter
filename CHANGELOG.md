@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.4.4 — 2026-11-05
+
+- Fixed: Ready check, the eight target marks and Clear on the Raid lead page gave the same "forbidden" and "blocked" errors as the raid bar. They are now the game's own buttons too, laid over the page, so the window itself still opens, closes and moves in a fight
+- In a fight those page buttons rest (the game does not let them be moved then); a click says to use the raid bar, whose marks and Ready work in fights
+
 ## v3.4.3 — 2026-11-05
 
 - Fixed: the raid bar's target marks and its X gave "RaidRecruiter was forbidden from calling SetRaidTarget()", and Ready gave "blocked from calling UNKNOWN()". Forever only lets the game's own buttons do these; Ready, the eight marks and Clear are now such buttons
