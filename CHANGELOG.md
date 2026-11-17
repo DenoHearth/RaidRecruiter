@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.4.7 — 2026-11-17
+
+- LFG feed: a left click on a post folds out the whole message (posts with several items no longer end in "..."); a second click folds it back.
+
 ## v3.4.6 — 2026-11-17
 
 - LFG feed: hovering an item, enchant or spell link in a post now shows the game's own tooltip for it.

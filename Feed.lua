@@ -27,6 +27,7 @@ local search = ""
 local page, rows, countText, sortButton, boostButton, restoreButton, contentButton
 local needButtons = {}
 local offset = 0
+local unfolded = {}             -- player name -> true while that post shows its whole message
 
 -- Classify ----------------------------------------------------------------------
 
@@ -335,12 +336,31 @@ function RR.RefreshFeedUI()
     if not page or not page:IsShown() then return end
     Trim()
     local list = Visible()
-    local maxOffset = math.max(0, #list - FEED_ROWS)
+    local anyUnfolded = false
+    for _, entry in ipairs(list) do
+        if unfolded[entry.name] then anyUnfolded = true break end
+    end
+    -- an unfolded post takes more room, so the rows under it can fall off the page:
+    -- then scrolling must be able to reach every post
+    local maxOffset = math.max(0, anyUnfolded and #list - 1 or #list - FEED_ROWS)
     if offset > maxOffset then offset = maxOffset end
+    local top = -104
+    local bottom = -104 - FEED_ROWS * FEED_ROW_H
     for index = 1, FEED_ROWS do
         local row = rows[index]
         local entry = list[index + offset]
+        local open = entry and unfolded[entry.name] or false
+        row.text:SetWordWrap(open)
+        row.text:SetText(entry and entry.text or "")
+        local height = FEED_ROW_H - 2
+        if open then height = math.max(height, math.ceil(row.text:GetStringHeight()) + 14) end
+        if entry and top - height < bottom and index > 1 then entry = nil end
         row.entry = entry
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 10, top)
+        row:SetPoint("TOPRIGHT", -10, top)
+        row:SetHeight(height)
+        top = top - height - 2
         if entry then
             local color = KIND_COLOR[entry.kind]
             row.kind:SetText(KIND_LABEL[entry.kind])
@@ -354,7 +374,6 @@ function RR.RefreshFeedUI()
             row.roleTank:SetShown(entry.roles.tank and true or false)
             row.roleHeal:SetShown(entry.roles.heal and true or false)
             row.roleDps:SetShown(entry.roles.dps and true or false)
-            row.text:SetText(entry.text)
             row.ago:SetText(Ago(GetTime() - entry.time))
             row.invite:SetShown(entry.kind == "lfg")
             row:Show()
@@ -612,6 +631,14 @@ function RR.FeedUI_Init()
         end)
 
         row:EnableMouse(true)
+        -- His wish (2026-11-17): a left click on the post folds the whole message out, and
+        -- a second click folds it back. Posts with several items do not fit on one line.
+        row:SetScript("OnMouseUp", function(self, button)
+            if button ~= "LeftButton" or not self.entry then return end
+            local name = self.entry.name
+            unfolded[name] = not unfolded[name] or nil
+            RR.RefreshFeedUI()
+        end)
         row:SetScript("OnEnter", function(self)
             local entry = self.entry
             if not entry then return end
@@ -623,6 +650,8 @@ function RR.FeedUI_Init()
                 GameTooltip:AddLine(string.format("Posted %d times, first %s ago", entry.count, Ago(GetTime() - entry.first)),
                     0.5, 0.5, 0.5)
             end
+            GameTooltip:AddLine(unfolded[entry.name] and "Click to fold the message up" or "Click to show the whole message",
+                0.4, 0.7, 1)
             if entry.mate then GameTooltip:AddLine("Guild mate or friend", C.warn[1], C.warn[2], C.warn[3]) end
             local note = RR.GetNote(entry.name)
             if note then GameTooltip:AddLine("Note: " .. note, C.warn[1], C.warn[2], C.warn[3], true) end
