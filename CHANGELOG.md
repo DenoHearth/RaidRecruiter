@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.4.6 — 2026-11-17
+
+- LFG feed: hovering an item, enchant or spell link in a post now shows the game's own tooltip for it.
+
 ## v3.4.5 — 2026-11-05
 
 - No more "RaidRecruiter was blocked from calling UNKNOWN()" in fights. The item level reader checked inspect range with `CheckInteractDistance`, which live Forever blocks in combat; it now waits for the fight to end. The trade range check skips it in a fight too.

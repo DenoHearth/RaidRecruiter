@@ -633,6 +633,25 @@ function RR.FeedUI_Init()
             GameTooltip:Show()
         end)
         row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+        -- Item, enchant and spell links in the message show the game's own tooltip on hover.
+        -- Hover only: a click on a link does nothing, every action stays a button.
+        row:SetHyperlinksEnabled(true)
+        row:SetScript("OnHyperlinkEnter", function(self, link)
+            GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+            if not (link and pcall(GameTooltip.SetHyperlink, GameTooltip, link)) then
+                GameTooltip:Hide()
+                return
+            end
+            GameTooltip:Show()
+        end)
+        row:SetScript("OnHyperlinkLeave", function(self)
+            GameTooltip:Hide()
+            if self:IsMouseOver() then
+                local onEnter = self:GetScript("OnEnter")
+                if onEnter then onEnter(self) end
+            end
+        end)
         rows[index] = row
     end
 
