@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.4.8 — 2026-11-20
+
+- LFG feed: hovering an item link shows a clean item tooltip of its own; price lines other addons add to the game tooltip (Goldwright and the like) no longer show up there. Profession links still use the game tooltip.
+
 ## v3.4.7 — 2026-11-17
 
 - LFG feed: a left click on a post folds out the whole message (posts with several items no longer end in "..."); a second click folds it back.

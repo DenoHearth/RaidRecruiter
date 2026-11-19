@@ -29,6 +29,16 @@ local needButtons = {}
 local offset = 0
 local unfolded = {}             -- player name -> true while that post shows its whole message
 
+-- Our own tooltip for item links in the feed, made on first use. Addons that add lines to
+-- item tooltips (Goldwright's prices) only hook GameTooltip, so they stay out of this one.
+local linkTooltip
+local function LinkTooltip()
+    if not linkTooltip then
+        linkTooltip = CreateFrame("GameTooltip", "RaidRecruiterLinkTooltip", UIParent, "GameTooltipTemplate")
+    end
+    return linkTooltip
+end
+
 -- Classify ----------------------------------------------------------------------
 
 -- Names and abbreviations as players type them, lower case. Every word is matched on word
@@ -665,17 +675,23 @@ function RR.FeedUI_Init()
 
         -- Item, enchant and spell links in the message show the game's own tooltip on hover.
         -- Hover only: a click on a link does nothing, every action stays a button.
+        -- Item links use our own tooltip frame: other addons hang their extra lines on
+        -- GameTooltip (Goldwright's auction prices), and he does not want those here.
+        -- Profession links stay on GameTooltip: hovering one there opens the linked
+        -- profession window, which a click in chat does not do on Forever right now.
         row:SetHyperlinksEnabled(true)
         row:SetScript("OnHyperlinkEnter", function(self, link)
-            GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-            if not (link and pcall(GameTooltip.SetHyperlink, GameTooltip, link)) then
-                GameTooltip:Hide()
+            local tip = (link and link:find("^trade:")) and GameTooltip or LinkTooltip()
+            tip:SetOwner(self, "ANCHOR_CURSOR")
+            if not (link and pcall(tip.SetHyperlink, tip, link)) then
+                tip:Hide()
                 return
             end
-            GameTooltip:Show()
+            tip:Show()
         end)
         row:SetScript("OnHyperlinkLeave", function(self)
             GameTooltip:Hide()
+            if linkTooltip then linkTooltip:Hide() end
             if self:IsMouseOver() then
                 local onEnter = self:GetScript("OnEnter")
                 if onEnter then onEnter(self) end
