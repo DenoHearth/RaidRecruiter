@@ -3,9 +3,6 @@
 ## v3.4.9 — 2026-11-20
 
 - LFG feed: crafters offering their work ("LFW", "looking for work", "your mats", "crafting", "LF enchanter") now show up under Trade; before, those posts were skipped.
-
-## v3.4.8 — 2026-11-20
-
 - LFG feed: hovering an item link shows a clean item tooltip of its own; price lines other addons add to the game tooltip (Goldwright and the like) no longer show up there. Profession links still use the game tooltip.
 
 ## v3.4.7 — 2026-11-17
