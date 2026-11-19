@@ -133,7 +133,9 @@ local function ActivityOf(text)
 end
 
 local BOOST_WORDS = { "boost", "boosts", "boosting", "carry", "carries", "gdkp", "services", "powerlevel", "powerleveling" }
-local TRADE_WORDS = { "wts", "wtb", "wtt", "selling", "buying" }
+-- Crafters posting their work count as trade too ("LFW [Enchanting] ... your mats & tip").
+local TRADE_WORDS = { "wts", "wtb", "wtt", "selling", "buying", "lfw", "looking for work", "lf work",
+    "your mats", "ur mats", "own mats", "crafter", "crafting", "lf enchanter", "lf ench" }
 local GUILD_WORDS = { "recruiting", "recruits", "recruit", "recruitment" }
 
 -- Plain lower-case text: colour codes and links leave only what the player sees.
